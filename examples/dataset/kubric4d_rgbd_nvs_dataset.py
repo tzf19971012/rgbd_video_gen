@@ -66,6 +66,47 @@ def _resolve_path(root, path):
     return os.path.join(root, path)
 
 
+def _ensure_manifest(root, manifest):
+    """Return the resolved manifest path, generating it on first use.
+
+    When the manifest file is missing, the per-dataset preparer in
+    utils/ is invoked to scan the raw layout and write one (GTA-SfM also
+    decodes its hdf5 archives to <root>/extracted as a side effect).
+    Unknown dataset names fall through to the usual FileNotFoundError.
+    """
+    resolved = _resolve_path(root, manifest)
+    target = (os.path.join(resolved, "manifest.jsonl")
+              if os.path.isdir(resolved) else resolved)
+    if os.path.exists(target):
+        return resolved
+
+    name = os.path.basename(os.path.normpath(str(root))).lower()
+    generator = None
+    if "blendedmvs" in name:
+        def generator():
+            from utils.prepare_blendedmvs import prepare as _prepare_bmvs
+            _prepare_bmvs(str(root), target, scene_list_file=None, max_scenes=None,
+                          min_views=5, skip_depth_convert=False, force_convert=False)
+    elif "tartanair" in name:
+        def generator():
+            from utils.prepare_multi4d_manifests import prepare_tartanair
+            prepare_tartanair(str(root), target, stride=1, min_views=5, k_override=None)
+    elif "matrixcity" in name:
+        def generator():
+            from utils.prepare_multi4d_manifests import prepare_matrixcity
+            prepare_matrixcity(str(root), target, stride=1, min_views=5,
+                               rot_scale=0.01, convert_exr=True)
+    elif "gta" in name:
+        def generator():
+            from utils.prepare_multi4d_manifests import prepare_gta_sfm
+            prepare_gta_sfm(str(root), target, stride=1, min_views=5,
+                            extract_root=None, skip_extract=False, invalid_depth=10000.0)
+    if generator is not None:
+        print(f"[Kubric4DRGBDNVSDataset] manifest missing, generating: {target}")
+        generator()
+    return resolved
+
+
 def _to_tensor(matrix, shape, dtype=torch.float32):
     tensor = torch.as_tensor(matrix, dtype=dtype)
     return tensor.reshape(shape).clone()
@@ -283,6 +324,8 @@ class Kubric4DRGBDNVSDataset(Dataset):
     every record comes straight from the manifest(s). `scene_filter` likewise
     accepts a single substring or a per-dataset list (None keeps everything).
     Records are tagged with a `dataset` name (basename of their root).
+    A missing manifest file is generated on first use by scanning the raw
+    dataset layout (see `_ensure_manifest`).
     """
 
     def __init__(
@@ -372,7 +415,7 @@ class Kubric4DRGBDNVSDataset(Dataset):
         raw_entries = []
         for root, manifest, filter_i in zip(roots, manifests, scene_filters):
             dataset_name = os.path.basename(os.path.normpath(str(root)))
-            for record in _read_json_or_jsonl(_resolve_path(root, manifest)):
+            for record in _read_json_or_jsonl(_ensure_manifest(root, manifest)):
                 raw_entries.append((root, dataset_name, filter_i, record))
 
         self.records = []
