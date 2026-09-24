@@ -207,6 +207,20 @@ def _matrixcity_scenes(root):
                   if os.path.isfile(os.path.join(root, d, "transforms.json")))
 
 
+def _index_by_stem(directory, extensions):
+    """{int(stem): filename} for files like '<digits>.<ext>' -- naming-agnostic
+    (any zero-padding width / extension)."""
+    index = {}
+    if not os.path.isdir(directory):
+        return index
+    pattern = re.compile(r"^(\d+)\.(" + "|".join(extensions) + r")$", re.IGNORECASE)
+    for name in os.listdir(directory):
+        match = pattern.match(name)
+        if match:
+            index[int(match.group(1))] = name
+    return index
+
+
 def prepare_matrixcity(data_root, out_manifest, stride, min_views, rot_scale,
                        convert_exr):
     records = []
@@ -217,34 +231,42 @@ def prepare_matrixcity(data_root, out_manifest, stride, min_views, rot_scale,
         angle_x = float(transforms["camera_angle_x"])
         frames = sorted(transforms["frames"], key=lambda f: int(f["frame_index"]))
 
-        first_rgb = os.path.join(scene_dir, "rgb", f"{int(frames[0]['frame_index']):04d}.png")
-        if not os.path.exists(first_rgb):
-            print(f"[skip] {scene_id}: rgb/ empty", file=sys.stderr)
+        # index what's actually on disk instead of guessing the naming scheme
+        rgb_index = _index_by_stem(os.path.join(scene_dir, "rgb"), ["png", "jpg", "jpeg"])
+        npy_index = _index_by_stem(os.path.join(scene_dir, "depth_npy"), ["npy"])
+        exr_index = _index_by_stem(os.path.join(scene_dir, "depth"), ["exr"])
+
+        if not rgb_index:
+            print(f"[skip] {scene_id}: no rgb/*.png|jpg files found in {scene_dir}/rgb",
+                  file=sys.stderr)
             continue
-        W, H = _image_size(first_rgb)
+        W, H = _image_size(os.path.join(scene_dir, "rgb", rgb_index[min(rgb_index)]))
         f = W / (2.0 * math.tan(angle_x / 2.0))
         K = np.array([[f, 0.0, W / 2.0], [0.0, f, H / 2.0], [0.0, 0.0, 1.0]])
 
         views = []
+        n_no_rgb = n_no_depth = 0
         for frame in frames[::stride]:
             idx = int(frame["frame_index"])
-            rgb_file = f"rgb/{idx:04d}.png"
-            if not os.path.exists(os.path.join(scene_dir, rgb_file)):
+            rgb_name = rgb_index.get(idx)
+            if rgb_name is None:
+                n_no_rgb += 1
                 continue
-            npy_file = f"depth_npy/{idx:04d}.npy"
-            if os.path.exists(os.path.join(scene_dir, npy_file)):
-                depth_file = npy_file
+            rgb_file = f"rgb/{rgb_name}"
+            if idx in npy_index:
+                depth_file = f"depth_npy/{npy_index[idx]}"
+            elif idx in exr_index and convert_exr:
+                depth = _read_exr(os.path.join(scene_dir, "depth", exr_index[idx]))
+                if depth.ndim == 3:
+                    depth = depth[..., 0]
+                os.makedirs(os.path.join(scene_dir, "depth_npy"), exist_ok=True)
+                npy_name = f"{idx:04d}.npy"
+                np.save(os.path.join(scene_dir, "depth_npy", npy_name),
+                        depth.astype(np.float32))
+                depth_file = f"depth_npy/{npy_name}"
             else:
-                exr_file = f"depth/{idx:04d}.exr"
-                if convert_exr and os.path.exists(os.path.join(scene_dir, exr_file)):
-                    depth = _read_exr(os.path.join(scene_dir, exr_file))
-                    if depth.ndim == 3:
-                        depth = depth[..., 0]
-                    os.makedirs(os.path.join(scene_dir, "depth_npy"), exist_ok=True)
-                    np.save(os.path.join(scene_dir, npy_file), depth.astype(np.float32))
-                    depth_file = npy_file
-                else:
-                    continue
+                n_no_depth += 1
+                continue
             rot = np.asarray(frame["rot_mat"], dtype=np.float64)
             c2w = np.eye(4)
             c2w[:3, :3] = rot[:3, :3] / rot_scale  # 0.01*R -> R, NO transpose
@@ -254,7 +276,11 @@ def prepare_matrixcity(data_root, out_manifest, stride, min_views, rot_scale,
         if len(views) >= min_views:
             records.append(_record(scene_id, views))
         else:
-            print(f"[skip] {scene_id}: {len(views)} usable views < min_views={min_views}",
+            hint = ""
+            if n_no_depth and exr_index and not convert_exr:
+                hint = f" ({n_no_depth} frames only have depth/*.exr; rerun with --convert-exr)"
+            print(f"[skip] {scene_id}: {len(views)} usable views < min_views={min_views} "
+                  f"(rgb missing for {n_no_rgb} frames, depth missing for {n_no_depth}){hint}",
                   file=sys.stderr)
     _write_manifest(records, out_manifest)
 
