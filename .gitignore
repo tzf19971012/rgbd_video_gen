@@ -10,14 +10,14 @@
 *.tar
 *.zip
 
-# 数据与输出
-models/
-ckpt/
-logs/
-outputs/
-demo/
-data/
-datasets/
+# 数据与输出（仅仓库根目录；不加 / 前缀会误伤 diffsynth/models 等源码目录）
+/models/
+/ckpt/
+/logs/
+/outputs/
+/demo/
+/data/
+/datasets/
 .DS_Store
 
 # 环境
