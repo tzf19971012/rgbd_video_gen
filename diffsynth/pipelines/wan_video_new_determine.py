@@ -359,6 +359,14 @@ class ModelConfig:
                 )
             if isinstance(self.path, list) and len(self.path) == 1:
                 self.path = self.path[0]
+            elif isinstance(self.path, list) and len(self.path) == 0:
+                raise FileNotFoundError(
+                    f"Model file not found under local_model_path: "
+                    f"{os.path.join(local_model_path, self.model_id, self.origin_file_pattern)} "
+                    f"(model_id={self.model_id!r}, pattern={self.origin_file_pattern!r}, "
+                    f"local_model_path={local_model_path!r}). Place the weights there, "
+                    f"or set skip_download=false to download them."
+                )
 
 
 class WanVideoPipeline(BasePipeline):
