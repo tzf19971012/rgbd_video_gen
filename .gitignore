@@ -1,0 +1,27 @@
+# 大文件 / 权重 / 生成物
+*.safetensors
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.h5
+*.hdf5
+*.mp4
+*.tar
+*.zip
+
+# 数据与输出
+models/
+ckpt/
+logs/
+outputs/
+demo/
+data/
+datasets/
+.DS_Store
+
+# 环境
+.venv/
+__pycache__/
+*.pyc
+.env

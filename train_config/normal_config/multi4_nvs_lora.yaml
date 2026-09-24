@@ -1,0 +1,179 @@
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+
+# ===========================================================================
+# Multi-dataset LoRA finetune, based on bmvs_c_base.yaml.
+#
+# Changes vs bmvs_c_base.yaml (everything else is inherited verbatim):
+#   1. 数据: 单个 BlendedMVS -> BlendedMVS/GTA-SfM/MatrixCity/TartanAir 四数据集
+#      (kubric4d_root / manifest_path / scene_filter 改为对齐的列表，manifest 驱动，
+#      不遍历目录；scene_filter 为 null 时该数据集全保留，GTA-SfM 只留 train 场景)。
+#      split_path 置空：示例数据没有冻结的 scene 划分，eval 退化为主进程对
+#      train_dataset 的浅拷贝采样（脚本 eval_split=null 分支的原有行为）。
+#   2. 路径: 所有平台相关路径收敛到文件顶部路径段，切换机器只改那一段。
+#   3. batch_size 8x8卡 -> 1x1卡起步, accum 2 -> 4（可按显存调大）。
+# 训练开关与 bmvs_c_base 完全一致: LoRA (train_all=false, lora_base_model="dit", lr=1e-4)。
+# ===========================================================================
+
+# ===========================================================================
+# 平台相关路径（切换平台/机器时只需要修改这一段）
+# ===========================================================================
+# Wan2.1 权重根目录：其下应包含 Wan-AI/Wan2.1-T2V-1.3B/
+wan_model_root: "/mi/sfs_turbo/t00845730/9_22_code/DVD-main/DVD-main/models"
+# 权重已在本地时设为 true，跳过 ModelScope 下载
+skip_download: true
+# 训练数据的公共根目录：其下应包含 BlendedMVS/ GTA-SfM/ MatrixCity/ TartanAir/
+sample_data_root: "/mi/data2T/y00959808/data/sample_data"
+# 训练输出目录
+output_path: "logs/multi4_nvs_lora"
+
+mode: rgbd_nvs
+# Joint RGB-D rectified flow: BOTH heads regress a velocity, share one sigma,
+# and both modalities are noised into the DiT input.
+training_target: "x"
+denoise_step: 0.5
+training_scheduler_timesteps: 1
+validation_scheduler_timesteps: 1
+
+trainable_models: "dit"
+# ---- LoRA 微调开关（与 bmvs_c_base 一致）----
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+
+mixed_precision: "bf16"
+learning_rate: 1.0e-4
+warmup_steps: 100
+lr_decay_steps: 0
+lr_min: 0.0
+
+num_epochs: 1000000
+max_steps: 500000
+max_train_steps: 500000
+log_step: 50
+clip_grad_norm: true
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+
+resume: false
+training_state_dir: "na"
+load_optimizer: false
+global_step: 0
+
+# --- Data: multi-dataset manifests, no frozen split -------------------------
+# kubric4d_root / manifest_path / scene_filter 是三个对齐的列表；单个数据集也可
+# 直接写标量（向后兼容 bmvs_c_base 的单数据集写法）。
+kubric4d_root:
+  - ${sample_data_root}/BlendedMVS
+  - ${sample_data_root}/GTA-SfM
+  - ${sample_data_root}/MatrixCity
+  - ${sample_data_root}/TartanAir
+manifest_path:
+  - manifest.jsonl
+  - manifest.jsonl
+  - manifest.jsonl
+  - manifest.jsonl
+scene_filter:
+  - null
+  - train        # GTA-SfM 只用 train_ 场景（test 场景只有 17 帧）
+  - null
+  - null
+# 无冻结 split：train 用全部场景，eval 走脚本的 train 浅拷贝分支
+split_path: null
+train_split: null
+eval_split: null
+# 四个数据集没有 view validity 文件，阈值必须为 0（等价于关闭该过滤）
+min_view_valid_fraction: 0.0
+
+resolution: [384, 672]
+num_source_views: 6
+num_target_views: 3
+vae_encoding_mode: "independent"
+random_permute_source_views: true
+init_dvd_ckpt: null
+
+disparity_norm_mode: "shared_scale"
+disparity_norm_quantile: 0.98
+disparity_norm_headroom: 1.5
+
+view_condition_plucker_resolution: "pixel"
+view_condition_pixel_scale: 8
+view_condition_mode: "concat"
+view_condition_normalize_moment: true
+view_condition_use_role: false
+
+# a-sweep a8: latent scaling + sequence token layout + splat warp channel.
+latent_scale: 1.94
+depth_latent_scale: 1.68
+token_layout: "sequence"
+warp_mode: "splat"
+warp_dropout_prob: 0.5
+warp_two_pass: true
+
+warp_perturb_prob: 0.0
+warp_perturb_gain_log_std: 0.34
+warp_perturb_shift_std: 0.059
+warp_perturb_blur_sigma: 2.0
+warp_perturb_lowfreq_std: 0.05
+warp_perturb_lowfreq_cells: 6
+warp_perturb_fill_invalid: true
+warp_perturb_fill_scale: 1.0
+per_frame_timestep: true
+depth_warp_block: false
+
+rgb_flow_matching: true
+rgb_flow_shift: 5.0
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: 0.0
+rgb_flow_logit_std: 1.0
+
+depth_flow_matching: true
+depth_head_init: "pretrained"
+
+rgb_loss_weight: 1.0
+depth_loss_weight: 1.0
+rgb_loss_type: "mse"
+depth_loss_type: "mse"
+
+# f-consist 默认关闭（与 bmvs_c_base 一致）
+depth_consist_scale_weight: 0.0
+depth_consist_repro_weight: 0.0
+depth_consist_sigma_max: 0.6
+depth_consist_num_views: 3
+depth_consist_max_samples: 2
+depth_consist_vae_checkpoint: true
+depth_consist_min_support: 0.02
+depth_consist_ratio_clip: 4.0
+depth_consist_trim_quantile: 0.9
+
+clean_source_depth: false
+clean_source_depth_prob: 0.5
+shared_rope_frame_ids: false
+rope_frame_axis: null
+rope_pose_translation_scale: null
+roce: "off"
+camera_geometry_fp32: false
+view_order: "random"
+
+samples_per_scene: 10
+
+# 单卡起步：可按显存调大，训练脚本支持命令行 dotlist 覆盖，如 batch_size=4
+batch_size: 1
+gradient_accumulation_steps: 4
+dataloader_num_workers: 4
+
+seed: 42
+
+# --- Eval（无 hold-out split，eval 采样自训练场景，仅作训练监控）-----------
+validate_step: 250
+init_validate: false
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_sample_seed: 1234
+eval_num_inference_steps: 25
+eval_flow_shift: 0.5
+eval_vis_downscale: 2
+eval_vis_format: "jpg"
+eval_vis_chunks: 2
+max_checkpoints: 24
