@@ -652,7 +652,13 @@ def main():
             f"eval_view_seed={eval_dataset.deterministic_view_seed}"
         )
 
-    optimizer = torch.optim.AdamW(model.trainable_modules(), lr=cfg.learning_rate)
+    # fused=True keeps the whole update on-device; the default (non-fused) path
+    # calls .item() twice per parameter (~1200 stream syncs per step on NPU,
+    # profiled 10-10), which serialises the entire pipeline behind the optimizer.
+    try:
+        optimizer = torch.optim.AdamW(model.trainable_modules(), lr=cfg.learning_rate, fused=True)
+    except (RuntimeError, ValueError):
+        optimizer = torch.optim.AdamW(model.trainable_modules(), lr=cfg.learning_rate)
     warmup_steps = int(cfg.get("warmup_steps", 0))
     # Cosine decay from `learning_rate` down to `lr_min` over `lr_decay_steps`
     # REAL optimizer steps AFTER warmup, then held flat at `lr_min` forever.
