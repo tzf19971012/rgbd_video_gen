@@ -11,7 +11,7 @@
 *.zip
 
 # 数据与输出
-models/
+/models/
 ckpt/
 logs/
 outputs/

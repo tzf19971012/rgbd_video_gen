@@ -365,6 +365,7 @@ def main():
     accelerator.print(
         f"factors: token_layout={cfg.get('token_layout', 'channel')}  "
         f"warp_mode={cfg.get('warp_mode', 'none')}  "
+        f"warp_splat_footprint={cfg.get('warp_splat_footprint', 'nearest')}  "
         f"per_frame_timestep={cfg.get('per_frame_timestep', False)}  "
         f"depth_warp_block={cfg.get('depth_warp_block', False)}  "
         f"clean_source_depth={cfg.get('clean_source_depth', False)}"
@@ -440,6 +441,7 @@ def main():
         depth_latent_scale=cfg.get("depth_latent_scale", None),
         token_layout=cfg.get("token_layout", "channel"),
         warp_mode=cfg.get("warp_mode", "none"),
+        warp_splat_footprint=cfg.get("warp_splat_footprint", "nearest"),
         warp_dropout_prob=cfg.get("warp_dropout_prob", 0.5),
         warp_two_pass=cfg.get("warp_two_pass", True),
         warp_perturb_prob=cfg.get("warp_perturb_prob", 0.0),

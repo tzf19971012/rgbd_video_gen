@@ -635,6 +635,7 @@ class WanRGBDNVSTrainingModule(WanTrainingModule):
         depth_latent_scale=None,
         token_layout="channel",
         warp_mode="none",
+        warp_splat_footprint="nearest",
         warp_dropout_prob=0.5,
         warp_two_pass=True,
         warp_perturb_prob=0.0,
@@ -816,6 +817,18 @@ class WanRGBDNVSTrainingModule(WanTrainingModule):
         if warp_mode not in ("none", "splat"):
             raise ValueError(f"warp_mode must be 'none' or 'splat', got {warp_mode!r}")
         self.warp_mode = warp_mode
+        # How a z-buffer-kept splat deposits its colour: "nearest" is the
+        # historical single-pixel last-write-wins path (bit-identical, all
+        # pre-existing arms reproduce exactly); "bilinear" splits each kept
+        # splat over a 2x2 footprint with a continuous coverage mask.  This
+        # changes warp_block, i.e. a model input, so arms must not flip it
+        # mid-comparison -- same caution class as warp_mode itself.
+        if warp_splat_footprint not in ("nearest", "bilinear"):
+            raise ValueError(
+                f"warp_splat_footprint must be 'nearest' or 'bilinear', "
+                f"got {warp_splat_footprint!r}"
+            )
+        self.warp_splat_footprint = warp_splat_footprint
         # The warp block is dropped this often during training.  Without it the
         # model would never have seen a zeroed block, and the first pass of
         # two-pass inference -- which has no depth estimate to warp with yet --
@@ -1428,6 +1441,7 @@ class WanRGBDNVSTrainingModule(WanTrainingModule):
             tgt_c2w=c2w[:, num_src:],
             return_target_disparity=return_target_disparity,
             geometry_fp32=self.camera_geometry_fp32,
+            footprint=self.warp_splat_footprint,
         )
 
     def _to_view_block(self, target_block, latent_size):
