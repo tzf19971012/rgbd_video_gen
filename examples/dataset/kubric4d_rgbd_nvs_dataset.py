@@ -242,7 +242,7 @@ class _ViewRecord:
 VIEW_ORDERS = ("random", "pose", "video")
 
 
-def _linspace_span(items, count, rng):
+def _linspace_span(items, count, rng, max_span=None):
     """Draw `count` items as an ordered sub-span of the list, evenly spaced.
 
     Port of VGGT-Diff vggtdiff/data.py:72-84 (the ordered branch of
@@ -250,19 +250,22 @@ def _linspace_span(items, count, rng):
     then `linspace` picks `count` frames.  With `span_size >= count` the
     rounded positions are distinct, so no dedup is needed.  Returned in
     temporal order -- this is what makes the RoPE frame axis a TIME axis.
+    `max_span` caps the span length (fast-motion clips: a wide span makes even
+    interpolated targets land far from every source view).
     """
     total = len(items)
     if total < count:
         return None
     if count == 1:
         return [items[rng.randrange(total)]]
-    span_size = rng.randint(count, total)
+    span_hi = min(total, max_span) if max_span else total
+    span_size = rng.randint(count, span_hi)
     start = rng.randint(0, total - span_size)
     span = items[start:start + span_size]
     return [span[round(p * (span_size - 1) / (count - 1))] for p in range(count)]
 
 
-def _video_sample(views, num_source, num_target, rng):
+def _video_sample(views, num_source, num_target, rng, tgt_interval_prob=0.2, max_src_span=None):
     """Video-temporal view sampling for ordered video clips (DL3DV).
 
     Port of VGGT-Diff vggtdiff/data.py `SceneDataset.__getitem__` NVS protocol
@@ -284,32 +287,48 @@ def _video_sample(views, num_source, num_target, rng):
     Returns (source_views, target_views) or None when the record cannot
     supply enough views; `_select_views` surfaces that to the caller.
     """
+    # Strict-interp redraw: with tgt_interval_prob == 1.0 the whole point is
+    # that every target lies inside the source interval, so a minimal span
+    # (interior too thin for num_target candidates) must REDRAW the span
+    # rather than fall back to the global pool -- with a span cap the
+    # minimal-span probability is high enough that the fallback would leak
+    # extrapolation targets into the interp-only arm.  For prob < 1.0 the
+    # historical global fallback is kept and the rng stream is untouched, so
+    # the running 80/20 arms select exactly what they selected before.
+    strict_interp = tgt_interval_prob >= 1.0
     ordered = sorted(views, key=lambda v: v.view_id)
-    source_views = _linspace_span(ordered, num_source, rng)
-    if source_views is None:
-        return None
-
-    # _ViewRecord's dataclass __eq__ compares tensors, so membership is keyed
-    # on view_id (unique within a scene) instead of `in` / list.index.
-    src_ids = {v.view_id for v in source_views}
-    candidates = [v for v in ordered if v.view_id not in src_ids]
-    if len(candidates) < num_target:
-        return None
-
-    if rng.random() < 0.2:
-        indices = [i for i, v in enumerate(ordered) if v.view_id in src_ids]
-        lo, hi = min(indices), max(indices)
-        local = [v for v in ordered[lo:hi + 1] if v.view_id not in src_ids]
-        if len(local) >= num_target:
-            candidates = local
-
-    if rng.random() < 0.5:
-        target_views = _linspace_span(candidates, num_target, rng)
-        if target_views is None:
+    for _ in range(10):
+        source_views = _linspace_span(ordered, num_source, rng, max_span=max_src_span)
+        if source_views is None:
             return None
-    else:
-        target_views = rng.sample(candidates, num_target)
-    return source_views, target_views
+
+        # _ViewRecord's dataclass __eq__ compares tensors, so membership is keyed
+        # on view_id (unique within a scene) instead of `in` / list.index.
+        src_ids = {v.view_id for v in source_views}
+        candidates = [v for v in ordered if v.view_id not in src_ids]
+        if len(candidates) < num_target:
+            return None
+
+        interval_ok = True
+        if rng.random() < tgt_interval_prob:
+            indices = [i for i, v in enumerate(ordered) if v.view_id in src_ids]
+            lo, hi = min(indices), max(indices)
+            local = [v for v in ordered[lo:hi + 1] if v.view_id not in src_ids]
+            if len(local) >= num_target:
+                candidates = local
+            elif strict_interp:
+                interval_ok = False  # redraw the span
+        if not interval_ok:
+            continue
+
+        if rng.random() < 0.5:
+            target_views = _linspace_span(candidates, num_target, rng)
+            if target_views is None:
+                return None
+        else:
+            target_views = rng.sample(candidates, num_target)
+        return source_views, target_views
+    return None
 
 
 def _order_source_views_by_pose(source_views, target_views):
@@ -382,6 +401,8 @@ class Kubric4DRGBDNVSDataset(Dataset):
         num_target_views=1,
         random_permute_source_views=True,
         view_order="random",
+        video_tgt_interval_prob=0.2,
+        video_max_src_span=None,
         return_metadata=True,
         disparity_norm_mode="shared_scale",
         disparity_norm_quantile=0.98,
@@ -435,6 +456,25 @@ class Kubric4DRGBDNVSDataset(Dataset):
         # therefore expected, not a contradiction -- what it still controls is
         # nothing.
         self.view_order = view_order
+        # view_order="video" only: probability that target candidates shrink to
+        # the source time interval (interp-heavy).  0.2 reproduces the
+        # VGGT-Diff 80/20 protocol; 1.0 makes EVERY target an interpolation,
+        # the fast-convergence hypothesis arm.
+        self.video_tgt_interval_prob = float(video_tgt_interval_prob)
+        if not 0.0 <= self.video_tgt_interval_prob <= 1.0:
+            raise ValueError(
+                f"video_tgt_interval_prob must be in [0, 1], got {video_tgt_interval_prob!r}"
+            )
+        # view_order="video" only: cap on the SOURCE span length (frames).
+        # None keeps the VGGT-Diff behaviour (span up to the whole clip).
+        self.video_max_src_span = (
+            None if video_max_src_span is None else int(video_max_src_span)
+        )
+        if self.video_max_src_span is not None and self.video_max_src_span < self.num_source_views:
+            raise ValueError(
+                f"video_max_src_span must be >= num_source_views "
+                f"({self.num_source_views}), got {video_max_src_span!r}"
+            )
         self.return_metadata = return_metadata
         if disparity_norm_mode not in ("shared_scale", "per_view"):
             raise ValueError(
@@ -646,7 +686,11 @@ class Kubric4DRGBDNVSDataset(Dataset):
         # them).  It consumes only the `rng` above, so a frozen
         # deterministic_view_seed eval stays a pure function of (seed, idx).
         if self.view_order == "video":
-            result = _video_sample(views, self.num_source_views, self.num_target_views, rng)
+            result = _video_sample(
+                views, self.num_source_views, self.num_target_views, rng,
+                tgt_interval_prob=self.video_tgt_interval_prob,
+                max_src_span=self.video_max_src_span,
+            )
             if result is None:
                 raise ValueError(
                     f"view_order='video' could not draw {self.num_source_views} source + "

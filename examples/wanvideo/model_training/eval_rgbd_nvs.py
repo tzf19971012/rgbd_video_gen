@@ -296,6 +296,8 @@ def main():
         num_target_views=cfg.num_target_views,
         random_permute_source_views=cfg.random_permute_source_views,
         view_order=cfg.get("view_order", "random"),
+        video_tgt_interval_prob=cfg.get("video_tgt_interval_prob", 0.2),
+        video_max_src_span=cfg.get("video_max_src_span", None),
         disparity_norm_mode=norm_mode,
         disparity_norm_headroom=headroom,
         deterministic_view_seed=int(cfg.get("eval_view_seed", 1234)),

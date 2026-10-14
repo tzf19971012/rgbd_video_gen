@@ -519,6 +519,8 @@ def main():
         num_target_views=cfg.num_target_views,
         random_permute_source_views=cfg.random_permute_source_views,
         view_order=cfg.get("view_order", "random"),
+        video_tgt_interval_prob=cfg.get("video_tgt_interval_prob", 0.2),
+        video_max_src_span=cfg.get("video_max_src_span", None),
         disparity_norm_mode=cfg.get("disparity_norm_mode", "shared_scale"),
         disparity_norm_quantile=cfg.get("disparity_norm_quantile", 0.98),
         disparity_norm_headroom=cfg.get("disparity_norm_headroom", 1.5),
@@ -588,6 +590,9 @@ def main():
                 # SELECTION untouched, so the eval set stays paired with the
                 # random-order arms (_select_views' comment spells out why).
                 view_order=cfg.get("view_order", "random"),
+                video_tgt_interval_prob=cfg.get(
+                    "video_tgt_interval_prob", 0.2),
+                video_max_src_span=cfg.get("video_max_src_span", None),
                 disparity_norm_mode=cfg.get("disparity_norm_mode", "shared_scale"),
                 disparity_norm_quantile=cfg.get("disparity_norm_quantile", 0.98),
                 disparity_norm_headroom=cfg.get("disparity_norm_headroom", 1.5),
