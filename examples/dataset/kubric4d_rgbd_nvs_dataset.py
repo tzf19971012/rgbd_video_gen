@@ -101,6 +101,24 @@ def _load_pfm(path):
 def _load_depth(path, depth_scale=1.0):
     if path.endswith(".npy"):
         depth = np.load(path)
+    elif path.endswith(".exr"):
+        # Single-channel scanline EXR (e.g. MoGe-2 metric depth from DL3DV_WAI).
+        try:
+            import OpenEXR
+            import Imath
+        except ImportError as exc:
+            raise ImportError("OpenEXR is required to read EXR depth maps.") from exc
+        handle = OpenEXR.InputFile(path)
+        header = handle.header()
+        window = header["dataWindow"]
+        width = window.max.x - window.min.x + 1
+        height = window.max.y - window.min.y + 1
+        channels = [c for c in header["channels"] if c in ("Y", "R", "depth", "Depth")]
+        name = channels[0] if channels else sorted(header["channels"])[0]
+        ptype = header["channels"][name].type.v
+        dtype = {Imath.PixelType.HALF: np.float16, Imath.PixelType.FLOAT: np.float32}[ptype]
+        depth = np.frombuffer(handle.channel(name, Imath.PixelType(ptype)), dtype=dtype)
+        depth = depth.reshape(height, width)
     elif path.endswith(".npz"):
         data = np.load(path)
         if "depth" in data:
@@ -221,7 +239,77 @@ class _ViewRecord:
     depth_scale: float = 1.0
 
 
-VIEW_ORDERS = ("random", "pose")
+VIEW_ORDERS = ("random", "pose", "video")
+
+
+def _linspace_span(items, count, rng):
+    """Draw `count` items as an ordered sub-span of the list, evenly spaced.
+
+    Port of VGGT-Diff vggtdiff/data.py:72-84 (the ordered branch of
+    `_sample_nvs_targets`): span length uniform in [count, len], start uniform,
+    then `linspace` picks `count` frames.  With `span_size >= count` the
+    rounded positions are distinct, so no dedup is needed.  Returned in
+    temporal order -- this is what makes the RoPE frame axis a TIME axis.
+    """
+    total = len(items)
+    if total < count:
+        return None
+    if count == 1:
+        return [items[rng.randrange(total)]]
+    span_size = rng.randint(count, total)
+    start = rng.randint(0, total - span_size)
+    span = items[start:start + span_size]
+    return [span[round(p * (span_size - 1) / (count - 1))] for p in range(count)]
+
+
+def _video_sample(views, num_source, num_target, rng):
+    """Video-temporal view sampling for ordered video clips (DL3DV).
+
+    Port of VGGT-Diff vggtdiff/data.py `SceneDataset.__getitem__` NVS protocol
+    ("expects six source views").  Requires view_id sort == temporal order,
+    which holds for the DL3DV manifest (zero-padded frame_XXXXX names).
+    Unlike `pose`, the SOURCE block is chosen here, not reordered afterwards;
+    both blocks keep temporal order except the unordered-target branch.
+
+    1.  SOURCE: ordered span sampling (`_linspace_span`) -- consecutive frame
+        indices are consecutive timestamps, the video analogue of the
+        view_order="pose" rationale.
+    2.  TARGET candidates: everything else.  With probability 20% they shrink
+        to the source time interval (probabilistic version of data.py:181-188
+        where 20% of bundles are interpolation-heavy), falling back to the
+        global pool when the interval is too thin.
+    3.  TARGET: `_sample_nvs_targets` 50/50 -- ordered sub-span (temporal
+        order preserved) vs unordered scatter (`rng.sample`).
+
+    Returns (source_views, target_views) or None when the record cannot
+    supply enough views; `_select_views` surfaces that to the caller.
+    """
+    ordered = sorted(views, key=lambda v: v.view_id)
+    source_views = _linspace_span(ordered, num_source, rng)
+    if source_views is None:
+        return None
+
+    # _ViewRecord's dataclass __eq__ compares tensors, so membership is keyed
+    # on view_id (unique within a scene) instead of `in` / list.index.
+    src_ids = {v.view_id for v in source_views}
+    candidates = [v for v in ordered if v.view_id not in src_ids]
+    if len(candidates) < num_target:
+        return None
+
+    if rng.random() < 0.2:
+        indices = [i for i, v in enumerate(ordered) if v.view_id in src_ids]
+        lo, hi = min(indices), max(indices)
+        local = [v for v in ordered[lo:hi + 1] if v.view_id not in src_ids]
+        if len(local) >= num_target:
+            candidates = local
+
+    if rng.random() < 0.5:
+        target_views = _linspace_span(candidates, num_target, rng)
+        if target_views is None:
+            return None
+    else:
+        target_views = rng.sample(candidates, num_target)
+    return source_views, target_views
 
 
 def _order_source_views_by_pose(source_views, target_views):
@@ -549,6 +637,22 @@ class Kubric4DRGBDNVSDataset(Dataset):
         rng = random if self.deterministic_view_seed is None else random.Random(
             self.deterministic_view_seed + int(idx)
         )
+
+        # video mode selects WHICH views, not just their order: sources come
+        # from a temporal span and targets from a 50/50 ordered/unordered draw
+        # (see _video_sample).  It is its own early branch because the existing
+        # pipeline below picks targets first and then orders the source block;
+        # video mode must pick sources first (the target interval depends on
+        # them).  It consumes only the `rng` above, so a frozen
+        # deterministic_view_seed eval stays a pure function of (seed, idx).
+        if self.view_order == "video":
+            result = _video_sample(views, self.num_source_views, self.num_target_views, rng)
+            if result is None:
+                raise ValueError(
+                    f"view_order='video' could not draw {self.num_source_views} source + "
+                    f"{self.num_target_views} target views from {len(views)} views."
+                )
+            return result
 
         target_views = rng.sample(views, self.num_target_views)
         remaining = [view for view in views if view not in target_views]
