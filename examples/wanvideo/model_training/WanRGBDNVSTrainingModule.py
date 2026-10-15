@@ -619,6 +619,7 @@ class WanRGBDNVSTrainingModule(WanTrainingModule):
         use_gradient_checkpointing_offload=False,
         local_model_path="./models",
         skip_download=False,
+        strip_i2v_image_input=False,
         num_source_views=2,
         num_target_views=1,
         vae_encoding_mode="temporal_padding",
@@ -696,6 +697,12 @@ class WanRGBDNVSTrainingModule(WanTrainingModule):
             local_model_path=local_model_path,
             skip_download=skip_download,
         )
+        # Optional: convert an I2V-structured base (e.g. Wan2.1-I2V-14B-720P)
+        # into the T2V structure IN PLACE.  Must run before anything sizes
+        # parameters off the DiT (rgb_head copy, patch-embedding widening),
+        # i.e. before enable_rgb_head / _expand_patch_embedding further below.
+        if strip_i2v_image_input:
+            self._strip_i2v_image_input(accelerator)
         self.num_source_views = int(num_source_views)
         self.num_target_views = int(num_target_views)
         self.num_views = self.num_source_views + self.num_target_views
@@ -1232,6 +1239,71 @@ class WanRGBDNVSTrainingModule(WanTrainingModule):
                 f"phase MLPs zero-initialised (step 0 is bit-identical to roce=off), "
                 f"{n_roce / 1e6:.1f}M new parameters."
             )
+
+    def _strip_i2v_image_input(self, accelerator):
+        """Convert an I2V-structured Wan DiT into the T2V structure, in place.
+
+        The I2V checkpoints (e.g. Wan2.1-I2V-14B-720P, key-hash 6bfcfb3b...) are
+        detected by ModelManager as has_image_input=True / patch_embedding
+        in_channels=36 (16 RGB latents + 4 mask + 16 image latents).  This NVS
+        pipeline never provides the CLIP feature / image-latent inputs, so
+        model_fn_wan_video would crash on the `if dit.has_image_input:` branch.
+        Instead of feeding dummy inputs we CUT the model down to the T2V
+        structure and drop the image-only weights:
+
+          * every block's cross-attention loses k_img / v_img / norm_k_img
+            (~2 x dim x dim per block of trained I2V image attention);
+          * the global img_emb MLP is deleted;
+          * patch_embedding keeps only the first 16 input channels (the RGB
+            latent block; the 20 I2V y/mask channels are discarded).
+
+        Everything downstream (rgb_head copy from the velocity head, the
+        depth/Plucker/warp channel widening in _expand_patch_embedding, LoRA,
+        freeze) then sees a plain T2V model, exactly like the 1.3B path.
+        """
+        dit = self.pipe.dit
+        if not getattr(dit, "has_image_input", False):
+            accelerator.print(
+                "[strip_i2v] DiT already has has_image_input=False "
+                "(T2V base); nothing to strip."
+            )
+            return
+        n_blocks = 0
+        for block in dit.blocks:
+            ca = block.cross_attn
+            if getattr(ca, "has_image_input", False):
+                ca.has_image_input = False
+                for attr in ("k_img", "v_img", "norm_k_img"):
+                    if hasattr(ca, attr):
+                        delattr(ca, attr)
+                n_blocks += 1
+        if hasattr(dit, "img_emb"):
+            delattr(dit, "img_emb")
+        dit.has_image_input = False
+        conv = dit.patch_embedding
+        if conv.in_channels != 16:
+            new_conv = torch.nn.Conv3d(
+                16,
+                conv.out_channels,
+                kernel_size=conv.kernel_size,
+                stride=conv.stride,
+                padding=conv.padding,
+                bias=conv.bias is not None,
+            ).to(device=conv.weight.device, dtype=conv.weight.dtype)
+            with torch.no_grad():
+                new_conv.weight.copy_(conv.weight[:, :16])
+                if conv.bias is not None:
+                    new_conv.bias.copy_(conv.bias)
+            dit.patch_embedding = new_conv
+            accelerator.print(
+                f"[strip_i2v] patch_embedding in_channels {conv.in_channels} -> 16 "
+                f"(dropped the I2V mask/image-latent channels)."
+            )
+        accelerator.print(
+            f"[strip_i2v] removed image cross-attention from {n_blocks} blocks and "
+            f"img_emb; dit.has_image_input -> False. The DiT is now structurally a "
+            f"T2V model (I2V-trained trunk preserved)."
+        )
 
     def _needs_extra_input_channels(self):
         """True when patch_embedding must be widened beyond the 16 RGB channels."""

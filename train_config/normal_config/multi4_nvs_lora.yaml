@@ -1,4 +1,6 @@
-model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+# I2V-14B-720P DiT 分片（已通过 strip_i2v_image_input=true 裁成 T2V 结构使用），
+# VAE 全系列通用，沿用本地已有的 1.3B 目录里的 Wan2.1_VAE.pth
+model_id_with_origin_paths: "Wan-AI/Wan2.1-I2V-14B-720P:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
 
 # ===========================================================================
 # Multi-dataset LoRA finetune, based on bmvs_c_base.yaml.
@@ -17,12 +19,17 @@ model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.saf
 # ===========================================================================
 # 平台相关路径（切换平台/机器时只需要修改这一段）
 # ===========================================================================
-# Wan2.1 权重根目录：其下应包含 Wan-AI/Wan2.1-T2V-1.3B/
-wan_model_root: "/mi/sfs_turbo/t00845730/9_22_code/DVD-main/DVD-main/models"
+# Wan2.1 权重根目录：其下应包含 Wan-AI/Wan2.1-I2V-14B-720P/（软链）和 Wan-AI/Wan2.1-T2V-1.3B/
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
 # 权重已在本地时设为 true，跳过 ModelScope 下载
 skip_download: true
 # 训练数据的公共根目录：其下应包含 BlendedMVS/ GTA-SfM/ MatrixCity/ TartanAir/
-sample_data_root: "/mi/data2T/y00959808/data/sample_data"
+# 注意：本机 data/ 下目前是 blendedmvs（小写、还是 tar.gz 未解包）和 MatrixCity，
+# TartanAir / GTA-SfM 尚未就位；正式训练前需解包/重命名并用
+# utils/prepare_multi4d_manifests.py 生成各数据集的 manifest.jsonl
+sample_data_root: "/mnt/sfs_turbo/t00845730/data"
+# I2V 权重裁剪：删除 img_emb / 各块 cross_attn 的 k_img/v_img，patch_embedding 36->16 通道
+strip_i2v_image_input: true
 # 训练输出目录
 output_path: "logs/multi4_nvs_lora"
 

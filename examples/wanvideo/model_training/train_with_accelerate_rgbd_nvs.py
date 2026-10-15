@@ -424,6 +424,7 @@ def main():
         lora_target_modules=cfg.lora_target_modules,
         local_model_path=cfg.get("wan_model_root", "./models"),
         skip_download=cfg.get("skip_download", False),
+        strip_i2v_image_input=cfg.get("strip_i2v_image_input", False),
         use_gradient_checkpointing=cfg.use_gradient_checkpointing,
         use_gradient_checkpointing_offload=cfg.use_gradient_checkpointing_offload,
         num_source_views=cfg.num_source_views,
