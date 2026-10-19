@@ -60,10 +60,10 @@ clip_grad_norm: true
 use_gradient_checkpointing: true
 use_gradient_checkpointing_offload: false
 
-resume: false
-training_state_dir: "na"
+resume: true
+training_state_dir: "logs/dl3dv2_overfit_seq6s3t_video/checkpoint-step-600"
 output_path: "logs/dl3dv2_overfit_seq6s3t_video"
-global_step: 0
+global_step: 600
 init_dvd_ckpt: null
 init_weights_ckpt: null
 depth_head_init: "pretrained"

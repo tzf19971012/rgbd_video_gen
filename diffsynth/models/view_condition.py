@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from .wan_video_camera_controller import ray_condition
+from .wan_video_camera_controller import fp32_geometry, ray_condition
 
 
 class ViewConditionEncoder(nn.Module):
@@ -21,6 +21,7 @@ class ViewConditionEncoder(nn.Module):
       *learns* how to pool the ``pixel_scale**2`` sub-positions instead of
       discarding them, and the half-pixel convention baked into
       ``ray_condition`` is applied at pixel rather than latent granularity.
+
     Both modes are output-identical at initialisation (the last conv is
     zero-initialised), so they are directly A/B comparable.
 
@@ -46,7 +47,6 @@ class ViewConditionEncoder(nn.Module):
         mode="add",
         use_role=True,
         normalize_moment=False,
-        raymap_style="plucker",
         geometry_fp32=False,
     ):
         super().__init__()
@@ -56,32 +56,24 @@ class ViewConditionEncoder(nn.Module):
             )
         if mode not in ("add", "concat"):
             raise ValueError(f"mode must be 'add' or 'concat', got {mode!r}")
-        if raymap_style not in ("plucker", "pixworld"):
-            raise ValueError(
-                f"raymap_style must be 'plucker' or 'pixworld', got {raymap_style!r}"
-            )
         if int(pixel_scale) < 1:
             raise ValueError(f"pixel_scale must be >= 1, got {pixel_scale!r}")
         self.plucker_resolution = plucker_resolution
         self.pixel_scale = int(pixel_scale)
         self.mode = mode
-        # "plucker": CameraCtrl layout [o x d | d] (channels 0:3 moment, 3:6
-        # direction).  "pixworld": PixWorld layout [d | o_perp] where
-        # o_perp = o - (o . d) d is the component of the camera centre
-        # perpendicular to the ray -- the vector from the origin to the closest
-        # point on the ray, invariant to sliding the centre along the ray.
-        # Information-equivalent to the moment (same magnitude, 90 deg apart in
-        # the plane orthogonal to d) but numerically different; PixWorld pairs
-        # it with NO raymap-level normalisation, so normalize_moment is forced
-        # off in this style.
-        self.raymap_style = raymap_style
-        if raymap_style == "pixworld":
-            normalize_moment = False
         self.normalize_moment = bool(normalize_moment)
-        # Compute the Plucker geometry in fp32 regardless of the input dtype
-        # (bf16 intrinsics quantise the pixel grid; see
-        # WanRGBDNVSTrainingModule.relative_c2w).  False (default) keeps the
-        # legacy behaviour bit-for-bit.
+        # Rasterise the ray field outside autocast.  Two separate defects hide in
+        # the bf16 path, and neither touches a learned parameter, so this flag is
+        # purely about the geometry:
+        #   * `ray_condition` sizes its pixel grid with
+        #     `torch.linspace(0, W-1, W, dtype=c2w.dtype)`.  bf16 holds integers
+        #     exactly only to 256, so at 384x672 the grid collapses -- 425 of 672
+        #     distinct column coordinates, 292 of them wrong, up to 3 px off, with
+        #     the step size degrading to 2 and then 4 towards the right edge.
+        #   * `directions @ R^T` is downcast by autocast even though both operands
+        #     are fp32, costing ~0.08 deg of ray direction, i.e. ~1 px median and
+        #     ~2.4 px at p99 at this focal length.
+        # Off by default: the field is a model input, so this is a sweep factor.
         self.geometry_fp32 = bool(geometry_fp32)
         # The role is only an explicit input in "add" mode.  In "concat" mode it
         # is redundant *and* harmful: source slots are identifiable by the fact
@@ -137,12 +129,7 @@ class ViewConditionEncoder(nn.Module):
         nn.init.zeros_(self.backbone[-1].bias)
 
     def _plucker(self, K, c2w, height, width):
-        """-> [B, V, 6, height, width].
-
-        raymap_style="plucker": channels 0:3 are the moment o x d, 3:6 the
-        direction d.  raymap_style="pixworld": channels 0:3 are the unit
-        direction d, 3:6 the perpendicular origin component o_perp.
-        """
+        """-> [B, V, 6, height, width]; channels 0:3 are the moment o x d, 3:6 the direction d."""
         fx = K[..., 0, 0]
         fy = K[..., 1, 1]
         cx = K[..., 0, 2]
@@ -151,27 +138,15 @@ class ViewConditionEncoder(nn.Module):
         # The Plucker field is a pure function of the (non-differentiable) camera
         # parameters, so no autograd graph is needed.  This matters in pixel mode
         # where the intermediates are pixel_scale**2 times larger.
-        with torch.no_grad():
+        with torch.no_grad(), fp32_geometry(K.device, self.geometry_fp32):
             if self.geometry_fp32:
-                K_in_dtype, c2w_in_dtype = K, c2w
-                K, c2w = K.float(), c2w.float()
+                # `ray_condition` derives its pixel grid's dtype from c2w, so the
+                # cast has to happen before the call, not inside it.
+                ray_K = ray_K.float()
+                c2w = c2w.float()
             plucker = ray_condition(ray_K, c2w, height, width, device=K.device)
-            if self.geometry_fp32:
-                plucker = plucker.to(K_in_dtype.dtype)
-                K, c2w = K_in_dtype, c2w_in_dtype
             plucker = plucker.permute(0, 1, 4, 2, 3).contiguous()
-            if self.raymap_style == "pixworld":
-                # ray_condition returns [o x d | d]; with ||d|| = 1 the
-                # identity d x (o x d) = o_perp holds exactly (the ray-parallel
-                # part of o is lost, which is precisely the Pluecker
-                # invariance), so no second rasterisation is needed.  The final
-                # projection only cleans fp round-off.
-                moment = plucker[:, :, :3]
-                d = plucker[:, :, 3:]
-                o_perp_raw = torch.linalg.cross(d, moment, dim=2)
-                o_perp = o_perp_raw - (o_perp_raw * d).sum(dim=2, keepdim=True) * d
-                plucker = torch.cat([d, o_perp], dim=2)
-            elif self.normalize_moment:
+            if self.normalize_moment:
                 # Only the moment o x d carries world scale (the direction is
                 # unit-norm), so its magnitude is proportional to the camera
                 # baseline and varies by orders of magnitude between scenes even
@@ -194,14 +169,15 @@ class ViewConditionEncoder(nn.Module):
         pixel_height=None,
         pixel_width=None,
     ):
-        """The RAW Plucker field [B, V, C, h, w] (post-normalize_moment, pre-
-        channel_scale) -- the same tensor `forward` consumes before encoding.
+        """-> [B, V, plucker_channels, latent_height, latent_width], no learned parts.
 
-        Exported for consumers that want the un-encoded geometry, e.g. the DiT's
-        RoCE camera embedding, which must see exactly the field the conditioning
-        block was built from.  `K` is the latent-grid intrinsics; in "pixel"
-        mode the pixel-grid args are required and the field is folded with
-        PixelUnshuffle, exactly as in `forward`.
+        The raw geometry, before `channel_scale` (concat mode) or the backbone
+        (add mode).  Split out of `forward` so RoCE can consume the same field
+        without rasterising it a second time -- in pixel mode that is a
+        384x672x6 ray field per view -- and without picking up a gradient path
+        into either learned part, which would make the RoCE arm change two things
+        at once.  It carries no autograd graph at all (`_plucker` is under
+        no_grad and PixelUnshuffle is a reshape).
         """
         if K.ndim != 4 or c2w.ndim != 4:
             raise ValueError("K and c2w must have shape [B, V, ...].")
@@ -241,15 +217,20 @@ class ViewConditionEncoder(nn.Module):
         pixel_width=None,
         plucker=None,
     ):
-        # `plucker` (optional, newer-caller API): a precomputed field from
-        # plucker_field(), so the rasterisation is shared with other consumers
-        # (e.g. RoCE) instead of being paid twice.
+        """`plucker` reuses a field already built by `plucker_field`; None builds it.
+
+        Passing it in is bit-identical to letting this method build it -- the field
+        is a pure function of the camera parameters -- and only exists so the RoCE
+        arm does not pay for the rasterisation twice.
+        """
+        if K.ndim != 4 or c2w.ndim != 4:
+            raise ValueError("K and c2w must have shape [B, V, ...].")
+        batch_size, num_views = K.shape[0], K.shape[1]
         if plucker is None:
             plucker = self.plucker_field(
                 K, c2w, latent_height, latent_width,
                 pixel_K=pixel_K, pixel_height=pixel_height, pixel_width=pixel_width,
             )
-        batch_size, num_views = K.shape[0], K.shape[1]
 
         if self.mode == "concat":
             out = plucker * self.channel_scale.view(1, 1, -1, 1, 1).to(plucker.dtype)

@@ -9,50 +9,38 @@ from typing_extensions import Literal
 
 
 def fp32_geometry(device, enabled):
-    """Take camera geometry out of autocast (ported from zhu_dvd/DVD, D4 fix).
+    """Context manager that takes camera geometry out of autocast.
 
-    Camera math written with `.float()` on the operands is STILL bf16 under
-    torch.autocast: the *op* picks the dtype, and `matmul` is on autocast's
-    lower-precision list while `linalg.inv` is on its fp32 list.  Measured on
-    real BlendedMVS poses: relative camera centres off by a median 0.37% of the
-    sample baseline (p90 2.91%, max 75.3%), ray-condition pixel grids quantised
-    (bf16 holds integers exactly only to 256), ray directions ~0.08 deg off.
-    Off by default everywhere: enabling it changes model inputs, so it is a
-    sweep factor (`camera_geometry_fp32`), not a silent bug fix.
+    Camera math in this project is written with `.float()` on the operands, which
+    looks sufficient and is not: under `torch.autocast` the *op* picks the dtype,
+    not the operands, and `matmul` is on autocast's lower-precision list.  So
+    `directions @ R^T` below -- and `rot @ cam + trans` in utils/warp.py, and the
+    relative-pose product in WanRGBDNVSTrainingModule -- all run in bf16 no matter
+    what was handed to them, and return a bf16 *tensor* whose dtype then
+    propagates into whatever reads it next.
+
+    `linalg.inv` is on autocast's fp32 list, which is why the inverses in those
+    same expressions are genuinely fp32 while the matmuls beside them are not.
+    That split is what makes the defect nearly invisible when reading the code.
+
+    Three consequences were measured on real BlendedMVS poses, see
+    reports/plan_20260906_rope_geometry.md §10 and the `camera_geometry_fp32`
+    comment in train_config/normal_config/bmvs_c_base.yaml:
+      * relative camera centres off by a median 0.37% of the sample baseline,
+        p90 2.91%, max 75.3% (catastrophic cancellation: two O(4) quantities
+        subtracted to make an O(0.1) one);
+      * `ray_condition`'s pixel grid quantised, because it sizes the grid with
+        `dtype=c2w.dtype` and bf16 holds integers exactly only to 256 -- at
+        384x672 that is 292 of 672 column coordinates wrong, up to 3 px;
+      * ray directions off ~0.08 deg, i.e. ~1 px median and ~2.4 px at p99.
+
+    Off by default everywhere: enabling it changes model inputs, so it is a sweep
+    factor and not a silent bug fix.
     """
     if not enabled:
         return contextlib.nullcontext()
     device_type = device.type if hasattr(device, "type") else str(device)
     return torch.autocast(device_type=device_type, enabled=False)
-
-
-def relative_c2w(c2w, geometry_fp32=False):
-    """Express every camera-to-world matrix relative to view 0.  [B, V, 4, 4].
-
-    Off path (the historical behaviour): invert view 0, left-multiply.  Under
-    bf16 autocast the translation column evaluates R_ref^T t - R_ref^T t_ref --
-    two O(distance-to-origin) terms canceling into an O(baseline) one, which
-    bf16 cannot represent.
-
-    fp32 path fixes it twice over: (1) translations are subtracted BEFORE the
-    rotation, so the cancellation never happens at all; (2) the whole block runs
-    outside autocast so the returned dtype is fp32 (ray_condition sizes its
-    pixel grid with c2w.dtype; a bf16 dtype silently quantises the grid).
-    """
-    if not geometry_fp32:
-        c2w_ref_inv = torch.linalg.inv(c2w[:, 0:1])
-        return c2w_ref_inv @ c2w
-    with fp32_geometry(c2w.device, True):
-        c2w = c2w.float()
-        r_ref_t = c2w[:, 0:1, :3, :3].transpose(-1, -2)      # [B, 1, 3, 3]
-        # Subtract first, rotate second: the difference is O(baseline) before
-        # it ever reaches a matmul, so there is nothing left to cancel.
-        d = c2w[..., :3, 3] - c2w[:, 0:1, :3, 3]             # [B, V, 3]
-        rel = torch.zeros_like(c2w)
-        rel[..., :3, :3] = r_ref_t @ c2w[..., :3, :3]
-        rel[..., :3, 3] = (r_ref_t @ d.unsqueeze(-1)).squeeze(-1)
-        rel[..., 3, 3] = 1.0
-        return rel
 
 
 class SimpleAdapter(nn.Module):
@@ -176,53 +164,40 @@ def custom_meshgrid(*args):
 
 def ray_condition(K, c2w, H, W, device):
     """Copied from https://github.com/hehao13/CameraCtrl/blob/main/inference.py
-
-    All geometry is computed in float32 with autocast disabled, whatever the
-    input dtype: under bf16 autocast the ``directions @ R`` matmul silently
-    drops to bf16, and a bf16 pixel grid is only exact up to integer 256
-    (8-bit mantissa) -- at 384x672 that misplaces ~292 column coordinates by
-    up to ~3px.  The field is a pure function of the camera parameters (no
-    gradient), so the fp32 result is simply cast back to the input dtype.
     """
     # c2w: B, V, 4, 4
     # K: B, V, 4
-    out_dtype = c2w.dtype
-    K = K.float()
-    c2w = c2w.float()
-    # Disable autocast for THIS tensor's device type (npu/cuda/cpu) -- a
-    # hardcoded backend name would not disable a different active context.
-    device_type = torch.device(device).type
 
     B = K.shape[0]
 
-    with torch.autocast(device_type=device_type, enabled=False):
-        j, i = custom_meshgrid(
-            torch.linspace(0, H - 1, H, device=device, dtype=torch.float32),
-            torch.linspace(0, W - 1, W, device=device, dtype=torch.float32),
-        )
-        i = i.reshape([1, 1, H * W]).expand([B, 1, H * W]) + 0.5  # [B, HxW]
-        j = j.reshape([1, 1, H * W]).expand([B, 1, H * W]) + 0.5  # [B, HxW]
+    j, i = custom_meshgrid(
+        torch.linspace(0, H - 1, H, device=device, dtype=c2w.dtype),
+        torch.linspace(0, W - 1, W, device=device, dtype=c2w.dtype),
+    )
+    i = i.reshape([1, 1, H * W]).expand([B, 1, H * W]) + 0.5  # [B, HxW]
+    j = j.reshape([1, 1, H * W]).expand([B, 1, H * W]) + 0.5  # [B, HxW]
 
-        fx, fy, cx, cy = K.chunk(4, dim=-1)  # B,V, 1
+    fx, fy, cx, cy = K.chunk(4, dim=-1)  # B,V, 1
 
-        zs = torch.ones_like(i)  # [B, HxW]
-        xs = (i - cx) / fx * zs
-        ys = (j - cy) / fy * zs
-        zs = zs.expand_as(ys)
+    zs = torch.ones_like(i)  # [B, HxW]
+    xs = (i - cx) / fx * zs
+    ys = (j - cy) / fy * zs
+    zs = zs.expand_as(ys)
 
-        directions = torch.stack((xs, ys, zs), dim=-1)  # B, V, HW, 3
-        directions = directions / \
-            directions.norm(dim=-1, keepdim=True)  # B, V, HW, 3
+    directions = torch.stack((xs, ys, zs), dim=-1)  # B, V, HW, 3
+    directions = directions / \
+        directions.norm(dim=-1, keepdim=True)  # B, V, HW, 3
 
-        rays_d = directions @ c2w[..., :3, :3].transpose(-1, -2)  # B, V, 3, HW
-        rays_o = c2w[..., :3, 3]  # B, V, 3
-        rays_o = rays_o[:, :, None].expand_as(rays_d)  # B, V, 3, HW
-        # c2w @ dirctions
-        rays_dxo = torch.linalg.cross(rays_o, rays_d)
-        plucker = torch.cat([rays_dxo, rays_d], dim=-1)
-        plucker = plucker.reshape(B, c2w.shape[1], H, W, 6)  # B, V, H, W, 6
+    rays_d = directions @ c2w[..., :3, :3].transpose(-1, -2)  # B, V, 3, HW
+    rays_o = c2w[..., :3, 3]  # B, V, 3
+    rays_o = rays_o[:, :, None].expand_as(rays_d)  # B, V, 3, HW
+    # c2w @ dirctions
+    # Cast to float32 for torch.linalg.cross which doesn't support bfloat16
+    rays_dxo = torch.linalg.cross(rays_o.float(), rays_d.float())
+    plucker = torch.cat([rays_dxo, rays_d], dim=-1)
+    plucker = plucker.reshape(B, c2w.shape[1], H, W, 6)  # B, V, H, W, 6
     # plucker = plucker.permute(0, 1, 4, 2, 3)
-    return plucker.to(out_dtype)
+    return plucker
 
 
 def process_pose_file(cam_params, width=672, height=384, original_pose_width=1280, original_pose_height=720, device='cpu', return_poses=False):

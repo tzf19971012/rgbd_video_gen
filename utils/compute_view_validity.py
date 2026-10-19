@@ -63,7 +63,26 @@ def _valid_fraction_depth(abs_depth_path):
     if not os.path.isfile(abs_depth_path):
         return None
     try:
-        depth = np.load(abs_depth_path)
+        if abs_depth_path.endswith(".npy"):
+            depth = np.load(abs_depth_path)
+        elif abs_depth_path.endswith(".exr"):
+            import OpenEXR
+            import Imath
+            handle = OpenEXR.InputFile(abs_depth_path)
+            header = handle.header()
+            window = header["dataWindow"]
+            width = window.max.x - window.min.x + 1
+            height = window.max.y - window.min.y + 1
+            names = [c for c in header["channels"] if c in ("Y", "R", "depth", "Depth")]
+            name = names[0] if names else sorted(header["channels"])[0]
+            ptype = header["channels"][name].type.v
+            dtype = {Imath.PixelType.HALF: np.float16, Imath.PixelType.FLOAT: np.float32}[ptype]
+            depth = np.frombuffer(handle.channel(name, Imath.PixelType(ptype)), dtype=dtype)
+            depth = depth.reshape(height, width)
+        else:
+            # PNG / other image formats (e.g. ScanNet++ uint16 millimetre PNGs);
+            # the dataset loader reads them the same way via PIL.
+            depth = np.asarray(Image.open(abs_depth_path), dtype=np.float32)
     except Exception:
         return None
     return float((np.isfinite(depth) & (depth > 0)).mean())

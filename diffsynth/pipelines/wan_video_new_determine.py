@@ -16,7 +16,8 @@ from tqdm import tqdm
 from typing_extensions import Literal
 
 from ..models import ModelManager, load_state_dict
-from ..models.wan_video_dit import RMSNorm, WanModel, sinusoidal_embedding_1d
+from ..models.wan_video_dit import (RMSNorm, WanModel, num_frame_rope_dims,
+                                    sinusoidal_embedding_1d)
 from ..models.wan_video_image_encoder import WanImageEncoder
 from ..models.wan_video_motion_controller import WanMotionControllerModel
 # from ..model.
@@ -312,9 +313,12 @@ class ModelConfig:
 
             # Download
             if not skip_download:
+                # Python 3.9 has no glob(root_dir=...); build the full pattern
+                # instead.  Also tolerate origin_file_pattern being None/empty.
                 downloaded_files = glob.glob(
-                    self.origin_file_pattern,
-                    root_dir=os.path.join(local_model_path, self.model_id),
+                    os.path.join(
+                        local_model_path, self.model_id, self.origin_file_pattern or ""
+                    )
                 )
                 # snapshot_download(
                 #     self.model_id,
@@ -591,6 +595,9 @@ class WanVideoPipeline(BasePipeline):
         torch_dtype: torch.dtype = torch.bfloat16,
         device: Union[str, torch.device] = "cuda",
         model_configs: list[ModelConfig] = [],
+        tokenizer_config: ModelConfig = ModelConfig(
+            model_id="Wan-AI/Wan2.1-T2V-1.3B", origin_file_pattern="google/*"
+        ),
         local_model_path: str = "./models",
         skip_download: bool = False,
         redirect_common_files: bool = True,
@@ -649,6 +656,13 @@ class WanVideoPipeline(BasePipeline):
             "wan_video_motion_controller"
         )
         pipe.vace = model_manager.fetch_model("wan_video_vace")
+
+        # Initialize tokenizer
+        tokenizer_config.download_if_necessary(
+            local_model_path, skip_download=skip_download
+        )
+        # pipe.prompter.fetch_models(pipe.text_encoder)
+        # pipe.prompter.fetch_tokenizer(tokenizer_config.path)
 
         # Unified Sequence Parallel
         if use_usp:
@@ -1571,8 +1585,9 @@ def model_fn_wan_video(
     cfg_merge: bool = False,
     use_gradient_checkpointing: bool = False,
     use_gradient_checkpointing_offload: bool = False,
-    roce_camera_latents: Optional[torch.Tensor] = None,
-    epipolar_D: Optional[torch.Tensor] = None,
+    rope_frame_ids=None,
+    rope_pose_matrices=None,
+    roce_camera_latents=None,
     **kwargs,
 ):
     if sliding_window_size is not None and sliding_window_stride is not None:
@@ -1612,22 +1627,17 @@ def model_fn_wan_video(
     # x = latents
     # print(f"Receving x with shape{x.shape}")
     # print(f"timesteps {timestep}", end=" ")
-    # Per-frame timesteps (per_frame_timestep=True): timestep arrives as [B, F].
-    # Flatten for the embedding, then restore (B, F, ...) so the blocks' AdaLN
-    # modulation and the heads' per-frame branch receive the expected shapes.
-    if timestep.ndim == 2:
-        b_frames = timestep.shape
-        t = dit.time_embedding(
-            sinusoidal_embedding_1d(dit.freq_dim, timestep.reshape(-1))
-        ).reshape(b_frames[0], b_frames[1], dit.dim)
-        t_mod = (
-            dit.time_projection(t.reshape(-1, dit.dim))
-            .unflatten(1, (6, dit.dim))
-            .reshape(b_frames[0], b_frames[1], 6, dit.dim)
-        )
-    else:
-        t = dit.time_embedding(sinusoidal_embedding_1d(dit.freq_dim, timestep))
-        t_mod = dit.time_projection(t).unflatten(1, (6, dit.dim))
+    # A 2-D timestep (B, F) assigns one noise level PER FRAME.  `t`/`t_mod` then
+    # grow a frame axis, which DiTBlock and Head broadcast over the spatial
+    # tokens.  A 1-D timestep keeps the original shapes exactly.
+    per_frame_timestep = timestep.dim() == 2
+    t = dit.time_embedding(
+        sinusoidal_embedding_1d(dit.freq_dim, timestep.reshape(-1))
+    )
+    t_mod = dit.time_projection(t).unflatten(1, (6, dit.dim))
+    if per_frame_timestep:
+        t = t.unflatten(0, timestep.shape)            # (B, F, dim)
+        t_mod = t_mod.unflatten(0, timestep.shape)    # (B, F, 6, dim)
     # print(f"t_mod shape: {t_mod.shape}")
     # print(f"first ten element{t_mod[0][:10]}")
     if motion_bucket_id is not None and motion_controller is not None:
@@ -1653,10 +1663,25 @@ def model_fn_wan_video(
 
     latents, (f, h, w) = dit.patchify(latents, None)
     _shortcut = latents
+    # `rope_frame_ids` overrides the default 0..f-1 temporal RoPE positions.  The
+    # RGB-D NVS module uses it to give an RGB frame and its disparity the SAME
+    # position when both modalities are laid out as one 2*V-frame sequence;
+    # without it view v's disparity sits V positions from its own RGB, further
+    # than any two views are from each other.  None keeps the original behaviour.
+    if rope_frame_ids is None:
+        frame_freqs = dit.freqs[0][:f]
+    else:
+        ids = torch.as_tensor(rope_frame_ids, dtype=torch.long, device=dit.freqs[0].device)
+        if ids.numel() != f:
+            raise ValueError(
+                f"rope_frame_ids has {ids.numel()} entries but the patchified "
+                f"latent has {f} frames"
+            )
+        frame_freqs = dit.freqs[0][ids]
     freqs = (
         torch.cat(
             [
-                dit.freqs[0][:f].view(f, 1, 1, -1).expand(f, h, w, -1),
+                frame_freqs.view(f, 1, 1, -1).expand(f, h, w, -1),
                 dit.freqs[1][:h].view(1, h, 1, -1).expand(f, h, w, -1),
                 dit.freqs[2][:w].view(1, 1, w, -1).expand(f, h, w, -1),
             ],
@@ -1665,6 +1690,109 @@ def model_fn_wan_video(
         .reshape(f * h * w, 1, -1)
         .to(latents.device)
     )
+
+    # `rope_pose_matrices` turns the frame axis into EscherNet's 6-DoF CaPE
+    # (arm d3): every token of frame v gets its 4-dim groups right-multiplied by
+    # P_v, so an attention logit becomes q^T (P_k P_q^-1)^T k -- exactly the
+    # RELATIVE pose, continuous in it, and independent of the world frame as long
+    # as P is world-to-camera.  The caller passes P per frame, [B, f, 4, 4].
+    cape = None
+    if rope_pose_matrices is not None:
+        pose = torch.as_tensor(rope_pose_matrices)
+        if pose.dim() == 3:
+            pose = pose.unsqueeze(0)
+        if pose.shape[-2:] != (4, 4):
+            raise ValueError(
+                f"rope_pose_matrices must be [B, frames, 4, 4], got {tuple(pose.shape)}"
+            )
+        if pose.shape[1] != f:
+            raise ValueError(
+                f"rope_pose_matrices has {pose.shape[1]} frames but the patchified "
+                f"latent has {f}"
+            )
+        # CaPE and the frame RoPE both act on real dims 0..frame_dims-1 of every
+        # head, and a 2x2 rotation does not commute with a 4x4 SE(3) matrix, so
+        # stacking them destroys the exact relative-pose identity.  Refuse rather
+        # than silently train a broken encoding (plan §6-2): the caller must pin
+        # the frame ids to a constant so the frame RoPE block is exactly 1+0j.
+        if rope_frame_ids is None:
+            raise ValueError(
+                "rope_pose_matrices requires rope_frame_ids pinned to a single "
+                "constant position (so the frame RoPE block is identity); got None, "
+                "which means the default 0..f-1 ladder is still active"
+            )
+        if int(ids.min()) != int(ids.max()):
+            raise ValueError(
+                "rope_pose_matrices requires all rope_frame_ids to be equal (the "
+                f"frame RoPE must be identity), got min={int(ids.min())} "
+                f"max={int(ids.max())}"
+            )
+        if int(ids.min()) != 0:
+            raise ValueError(
+                "rope_pose_matrices requires rope_frame_ids == 0, so that "
+                f"dit.freqs[0][id] is exactly 1+0j; got {int(ids.min())}"
+            )
+        if use_unified_sequence_parallel:
+            # cape_apply views the token axis as (frame, spatial); sequence
+            # parallelism chunks that axis, so rank>0 would silently misalign
+            # tokens with poses.
+            raise ValueError(
+                "rope_pose_matrices is incompatible with use_unified_sequence_parallel"
+            )
+        pose = pose.to(device=latents.device, dtype=torch.float32)
+        if pose.shape[0] != latents.shape[0]:
+            if latents.shape[0] % pose.shape[0] != 0:
+                raise ValueError(
+                    f"cannot broadcast {pose.shape[0]} pose batches onto "
+                    f"{latents.shape[0]} latent batches"
+                )
+            pose = torch.cat([pose] * (latents.shape[0] // pose.shape[0]), dim=0)
+        # key carries P, query carries P^-T (EscherNet dataset.py:169-171).
+        pose_q = torch.linalg.inv(pose).transpose(-1, -2)
+        cape = (pose_q, pose, f, num_frame_rope_dims(dit.head_dim))
+
+    # `roce_camera_latents` is ReDirector's RoCE (arm droce / plan §D-extra): a
+    # Plucker ray field at LATENT resolution, [B, C, f_latent, h_latent, w_latent],
+    # which each block turns into a learned phase on its h/w rotary channels.
+    # Orthogonal to CaPE above by construction -- CaPE owns the frame dims, RoCE
+    # owns h/w -- so the two may be combined, and rope_apply raises if the widths
+    # ever stop lining up.
+    roce_cam_emb = None
+    if roce_camera_latents is not None:
+        if getattr(dit, "roce_cam_embedding", None) is None:
+            raise ValueError(
+                "roce_camera_latents was passed but the DiT has no RoCE modules; "
+                "call dit.enable_roce(cam_channels, mode) when the model is built"
+            )
+        if use_unified_sequence_parallel:
+            # The camera tokens are built here, before the token axis is chunked,
+            # and are not chunked with it -- rank>0 would pair every token with
+            # the wrong patch's camera.
+            raise ValueError(
+                "roce_camera_latents is incompatible with use_unified_sequence_parallel"
+            )
+        roce_cam_emb = dit.roce_camera_tokens(
+            roce_camera_latents.to(device=latents.device, dtype=latents.dtype)
+        )
+        # Token count is the whole alignment contract: the camera field and the
+        # latent go through convs of identical geometry, so equal token counts mean
+        # token i of both describes the same (frame, patch).  A mismatch here is
+        # the one form of misalignment that is not silent, so check it.
+        if roce_cam_emb.shape[1] != latents.shape[1]:
+            raise ValueError(
+                f"roce_camera_latents patchifies to {roce_cam_emb.shape[1]} tokens "
+                f"but the latent has {latents.shape[1]}; the camera field must have "
+                f"the same frame count ({f}) and latent grid as the input"
+            )
+        if roce_cam_emb.shape[0] != latents.shape[0]:
+            if latents.shape[0] % roce_cam_emb.shape[0] != 0:
+                raise ValueError(
+                    f"cannot broadcast {roce_cam_emb.shape[0]} camera batches onto "
+                    f"{latents.shape[0]} latent batches"
+                )
+            roce_cam_emb = torch.cat(
+                [roce_cam_emb] * (latents.shape[0] // roce_cam_emb.shape[0]), dim=0
+            )
 
     if tea_cache is not None:
         tea_cache_update = tea_cache.check(dit, latents, t_mod)
@@ -1677,61 +1805,45 @@ def model_fn_wan_video(
                 get_sequence_parallel_rank()
             ]
 
-    # RoCE (ReDirector): one camera token per patch, in patchify's order, fed to
-    # every block's zero-init phase MLPs.  None (roce=off) leaves the loop below
-    # bit-identical to the non-RoCE model.
-    roce_cam_emb = None
-    if roce_camera_latents is not None:
-        roce_cam_emb = dit.roce_camera_tokens(roce_camera_latents)
-
-    # Epipolar attention bias (diffsynth/models/epipolar.py): additive
-    # Sampson-distance penalty on cross-view attention logits.  None
-    # (epipolar_attention off) leaves everything bit-identical.
-    epipolar_bias = None
-    if epipolar_D is not None:
-        if getattr(dit, "epipolar_gamma", None) is None:
-            raise ValueError(
-                "epipolar_D reached a model whose gamma scalar was never "
-                "created; call enable_epipolar() first"
-            )
-        epipolar_bias = (
-            (-dit.epipolar_gamma.to(epipolar_D.dtype) * epipolar_D)
-            .unsqueeze(1)
-            .to(latents.dtype)
-        )
-
     if tea_cache_update:
         latents = tea_cache.update(latents)
     else:
-        def create_custom_forward(module, roce_cam_emb, epipolar_bias):
-            def custom_forward(*inputs):
-                # camera_pose_embedding sits before roce_cam_emb in
-                # DiTBlock.forward's signature and is not used here.
-                return module(*inputs, None, roce_cam_emb, epipolar_bias)
+        def create_custom_forward(module):
+            def custom_forward(*inputs, **kwargs):
+                return module(*inputs, **kwargs)
             return custom_forward
 
         for idx, block in enumerate(dit.blocks):
             if use_gradient_checkpointing_offload:
                 with torch.autograd.graph.save_on_cpu():
                     latents = torch.utils.checkpoint.checkpoint(
-                        create_custom_forward(block, roce_cam_emb, epipolar_bias),
+                        create_custom_forward(block),
                         latents,
                         context,
                         t_mod,
                         freqs,
+                        None,
+                        cape,
+                        roce_cam_emb,
                         use_reentrant=False,
                     )
             elif use_gradient_checkpointing:
                 latents = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(block, roce_cam_emb, epipolar_bias),
+                    create_custom_forward(block),
                     latents,
                     context,
                     t_mod,
                     freqs,
+                    None,
+                    cape,
+                    roce_cam_emb,
                     use_reentrant=False,
                 )
             else:
-                latents = block(latents, context, t_mod, freqs, None, roce_cam_emb, epipolar_bias)
+                latents = block(
+                    latents, context, t_mod, freqs,
+                    cape=cape, roce_cam_emb=roce_cam_emb,
+                )
 
             if vace_context is not None and idx in vace.vace_layers_mapping:
                 current_vace_hint = vace_hints[vace.vace_layers_mapping[idx]]
@@ -1765,12 +1877,6 @@ def model_fn_wan_video(
         if reference_latents is not None:
             rgb_latents = rgb_latents[:, reference_latents.shape[1]:]
         rgb_latents = dit.unpatchify(rgb_latents, (f, h, w))
-        if getattr(dit, "pose_head", None) is not None:
-            pose_latents = dit.pose_head(hidden_states, t)
-            if reference_latents is not None:
-                pose_latents = pose_latents[:, reference_latents.shape[1]:]
-            pose_latents = dit.unpatchify(pose_latents, (f, h, w))
-            return latents, rgb_latents, pose_latents
         return latents, rgb_latents
 
     return latents
