@@ -1,0 +1,200 @@
+# I2V-14B-720P DiT 分片（已通过 strip_i2v_image_input=true 裁成 T2V 结构使用），
+# VAE 全系列通用，沿用本地已有的 1.3B 目录里的 Wan2.1_VAE.pth
+model_id_with_origin_paths: "Wan-AI/Wan2.1-I2V-14B-720P:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+
+# ===========================================================================
+# Multi-dataset LoRA finetune, based on bmvs_c_base.yaml.
+#
+# Changes vs bmvs_c_base.yaml (everything else is inherited verbatim):
+#   1. 数据: 单个 BlendedMVS -> BlendedMVS/GTA-SfM/MatrixCity/TartanAir 四数据集
+#      (kubric4d_root / manifest_path / scene_filter 改为对齐的列表，manifest 驱动，
+#      不遍历目录；scene_filter 为 null 时该数据集全保留，GTA-SfM 只留 train 场景)。
+#      split_path 置空：示例数据没有冻结的 scene 划分，eval 退化为主进程对
+#      train_dataset 的浅拷贝采样（脚本 eval_split=null 分支的原有行为）。
+#   2. 路径: 所有平台相关路径收敛到文件顶部路径段，切换机器只改那一段。
+#   3. batch_size 8x8卡 -> 1x1卡起步, accum 2 -> 4（可按显存调大）。
+# 训练开关与 bmvs_c_base 完全一致: LoRA (train_all=false, lora_base_model="dit", lr=1e-4)。
+# ===========================================================================
+
+# ===========================================================================
+# 平台相关路径（切换平台/机器时只需要修改这一段）
+# ===========================================================================
+# Wan2.1 权重根目录：其下应包含 Wan-AI/Wan2.1-I2V-14B-720P/（软链）和 Wan-AI/Wan2.1-T2V-1.3B/
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+# 权重已在本地时设为 true，跳过 ModelScope 下载
+skip_download: true
+# 训练数据的公共根目录：其下应包含 BlendedMVS/ GTA-SfM/ MatrixCity/ TartanAir/
+# 注意：本机 data/ 下目前是 blendedmvs（小写、还是 tar.gz 未解包）和 MatrixCity，
+# TartanAir / GTA-SfM 尚未就位；正式训练前需解包/重命名并用
+# utils/prepare_multi4d_manifests.py 生成各数据集的 manifest.jsonl
+sample_data_root: "/mnt/sfs_turbo/t00845730/data"
+# I2V 权重裁剪：删除 img_emb / 各块 cross_attn 的 k_img/v_img，patch_embedding 36->16 通道
+strip_i2v_image_input: true
+# 训练输出目录
+output_path: "logs/multi4_nvs_lora_ordered"
+
+mode: rgbd_nvs
+# Joint RGB-D rectified flow: BOTH heads regress a velocity, share one sigma,
+# and both modalities are noised into the DiT input.
+training_target: "x"
+denoise_step: 0.5
+training_scheduler_timesteps: 1
+validation_scheduler_timesteps: 1
+
+trainable_models: "dit"
+# ---- LoRA 微调开关（与 bmvs_c_base 一致）----
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+
+mixed_precision: "bf16"
+learning_rate: 1.0e-4
+warmup_steps: 100
+lr_decay_steps: 0
+lr_min: 0.0
+
+num_epochs: 1000000
+max_steps: 500000
+max_train_steps: 500000
+log_step: 50
+clip_grad_norm: true
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+
+# 从 0 开始训练（LoRA 权重随机初始化 + 预训练底模，不复用 optimizer/进度）
+resume: false
+training_state_dir: null
+global_step: 0
+
+# --- Data: multi-dataset manifests, no frozen split -------------------------
+# kubric4d_root / manifest_path / scene_filter 是三个对齐的列表；单个数据集也可
+# 直接写标量（向后兼容 bmvs_c_base 的单数据集写法）。
+# --- Data: bmvs + re10k 混训（与 multi4_nvs_lora20261021_080018 run 一致）----
+kubric4d_root:
+  - /mnt/sfs_turbo/t00845730/data/blendedmvs/extracted
+  - /mnt/sfs_turbo/t00845730/re10k/extracted
+manifest_path:
+  - /mnt/sfs_turbo/t00845730/data/blendedmvs/manifest_train_x9.jsonl
+  - /mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl
+scene_filter:
+  - null
+  - null
+# 无冻结 split：train 用全部场景，eval 走脚本的 train 浅拷贝分支
+split_path: null
+train_split: null
+eval_split: null
+# 四个数据集没有 view validity 文件，阈值必须为 0（等价于关闭该过滤）
+min_view_valid_fraction: 0.0
+
+resolution: [384, 672]
+num_source_views: 6
+num_target_views: 3
+vae_encoding_mode: "independent"
+random_permute_source_views: true
+init_dvd_ckpt: null
+
+disparity_norm_mode: "shared_scale"
+disparity_norm_quantile: 0.98
+disparity_norm_headroom: 1.5
+
+view_condition_plucker_resolution: "pixel"
+view_condition_pixel_scale: 8
+view_condition_mode: "concat"
+view_condition_normalize_moment: true
+view_condition_use_role: false
+
+# a-sweep a8: latent scaling + sequence token layout + splat warp channel.
+latent_scale: 1.94
+depth_latent_scale: 1.68
+token_layout: "sequence"
+warp_mode: "splat"
+warp_dropout_prob: 0.5
+warp_two_pass: true
+
+warp_perturb_prob: 0.0
+warp_perturb_gain_log_std: 0.34
+warp_perturb_shift_std: 0.059
+warp_perturb_blur_sigma: 2.0
+warp_perturb_lowfreq_std: 0.05
+warp_perturb_lowfreq_cells: 6
+warp_perturb_fill_invalid: true
+warp_perturb_fill_scale: 1.0
+per_frame_timestep: true
+depth_warp_block: false
+
+rgb_flow_matching: true
+rgb_flow_shift: 5.0
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: 0.0
+rgb_flow_logit_std: 1.0
+
+depth_flow_matching: true
+depth_head_init: "pretrained"
+
+rgb_loss_weight: 1.0
+depth_loss_weight: 1.0
+rgb_loss_type: "mse"
+depth_loss_type: "mse"
+
+# f-consist 默认关闭（与 bmvs_c_base 一致）
+depth_consist_scale_weight: 0.0
+depth_consist_repro_weight: 0.0
+depth_consist_sigma_max: 0.6
+depth_consist_num_views: 3
+depth_consist_max_samples: 2
+depth_consist_vae_checkpoint: true
+depth_consist_min_support: 0.02
+depth_consist_ratio_clip: 4.0
+depth_consist_trim_quantile: 0.9
+
+clean_source_depth: false
+clean_source_depth_prob: 0.5
+shared_rope_frame_ids: false
+rope_frame_axis: null
+rope_pose_translation_scale: null
+roce: "off"
+camera_geometry_fp32: false
+# ===========================================================================
+# view_order="vggt"：VGGT-Diff NVS 协议移植 + 针对性适配（bmvs/re10k 统一适用，
+# 两者 view_id 排序均为连续采集轨迹，见 manifest 审计：相邻距离/平均成对距离
+# bmvs~0.20、re10k~0.12）：
+#   - source：池均分段、每段抽 1 帧（分层铺开保证覆盖），再 shuffle 顺序
+#   - 配套分臂：40% local——source 池收窄到相对窗口 [15%,40%] + target 限制在
+#     source span 内（紧基线稠密内插）；60% global——source 池取 12 层网格里
+#     连续 6 层（≈50% 场景，层粒度滑动），target 全场景（保留外插信号）
+#   - global 臂不铺满全场的原因：bmvs 有 2k+ 视图的长采集，全场分层 6 帧会取到
+#     物体两侧无重叠的相机；限到半场保证 source 间重叠有下界，起点按层滑动
+#     仍能随抽样遍历全场景。短场景（<24 视图）跳过加窗，直接全场。
+# 注意：与旧 arm（view_order=random）的 eval 数值不可直接对比（视图划分变了）。
+# ===========================================================================
+view_order: "vggt"
+vggt_local_prob: 0.4
+vggt_window_lo: 0.15
+vggt_window_hi: 0.4
+vggt_min_local_views: 24
+vggt_strata: 12
+
+samples_per_scene: 10
+
+# 单卡起步：可按显存调大，训练脚本支持命令行 dotlist 覆盖，如 batch_size=4
+batch_size: 1
+gradient_accumulation_steps: 4
+dataloader_num_workers: 4
+
+seed: 42
+
+# --- Eval（无 hold-out split，eval 采样自训练场景，仅作训练监控）-----------
+# checkpoint 保存与 eval 共用 validate_step 节奏：每 50 步存一个 checkpoint-step-N 并跑一次 eval
+validate_step: 50
+init_validate: false
+eval_max_samples: 2
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_sample_seed: 1234
+eval_num_inference_steps: 25
+eval_flow_shift: 0.5
+eval_vis_downscale: 2
+eval_vis_format: "jpg"
+eval_vis_chunks: 2
+max_checkpoints: 3

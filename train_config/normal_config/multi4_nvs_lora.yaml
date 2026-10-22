@@ -62,10 +62,12 @@ clip_grad_norm: true
 use_gradient_checkpointing: true
 use_gradient_checkpointing_offload: false
 
-resume: false
-training_state_dir: "na"
-load_optimizer: false
-global_step: 0
+# 从 multi4_nvs_lora20261019_140229 的 step-250 checkpoint 精确续训
+# （accelerator.load_state 恢复 LoRA 权重 + 优化器 + scheduler + 随机状态）
+resume: true
+training_state_dir: "/mnt/sfs_turbo/t00845730/rgbd_video_gen/logs/multi4_nvs_lora20261020_094334/checkpoint-step-800"
+load_optimizer: true
+global_step: 800
 
 # --- Data: multi-dataset manifests, no frozen split -------------------------
 # kubric4d_root / manifest_path / scene_filter 是三个对齐的列表；单个数据集也可
@@ -172,9 +174,10 @@ dataloader_num_workers: 4
 seed: 42
 
 # --- Eval（无 hold-out split，eval 采样自训练场景，仅作训练监控）-----------
-validate_step: 250
+# checkpoint 保存与 eval 共用 validate_step 节奏：每 50 步存一个 checkpoint-step-N 并跑一次 eval
+validate_step: 50
 init_validate: false
-eval_max_samples: 8
+eval_max_samples: 2
 eval_batch_size: 2
 eval_view_seed: 1234
 eval_sample_seed: 1234
@@ -183,4 +186,4 @@ eval_flow_shift: 0.5
 eval_vis_downscale: 2
 eval_vis_format: "jpg"
 eval_vis_chunks: 2
-max_checkpoints: 24
+max_checkpoints: 3

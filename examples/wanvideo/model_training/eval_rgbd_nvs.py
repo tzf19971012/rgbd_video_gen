@@ -301,6 +301,11 @@ def main():
         view_order=cfg.get("view_order", "random"),
         video_tgt_interval_prob=cfg.get("video_tgt_interval_prob", 0.2),
         video_max_src_span=cfg.get("video_max_src_span", None),
+        vggt_local_prob=cfg.get("vggt_local_prob", 0.2),
+        vggt_window_lo=cfg.get("vggt_window_lo", 0.15),
+        vggt_window_hi=cfg.get("vggt_window_hi", 0.4),
+        vggt_min_local_views=cfg.get("vggt_min_local_views", 24),
+        vggt_strata=cfg.get("vggt_strata", 12),
         disparity_norm_mode=norm_mode,
         disparity_norm_headroom=headroom,
         deterministic_view_seed=int(cfg.get("eval_view_seed", 1234)),
@@ -319,8 +324,14 @@ def main():
     # grown manifest loads cleanly and reports a full metric table that simply
     # describes different scenes, which is the same class of silent failure as the
     # per_frame_timestep gap in report_20260904_p0a §1.
+    # manifest_path may be a scalar or a parallel list (multi-dataset bundles)
+    manifest_label = (
+        "+".join(os.path.basename(str(m)) for m in manifest_path)
+        if isinstance(manifest_path, (list, tuple))
+        else os.path.basename(str(manifest_path))
+    )
     accelerator.print(
-        f"eval set identity: manifest={os.path.basename(manifest_path)} "
+        f"eval set identity: manifest={manifest_label} "
         f"({len(dataset.records)} scenes after min_view_valid_fraction="
         f"{cfg.get('min_view_valid_fraction', 0.0)})  "
         f"validity={os.path.basename(view_validity_path) if view_validity_path else '<derived>'}  "

@@ -35,7 +35,7 @@ echo "[train_multi4_nvs_lora] overrides      = $*"
 if [ "${USE_ACCELERATE:-0}" = "1" ]; then
     ACCELERATE_CONFIG="${ACCELERATE_CONFIG:-train_config/accelerate_config/accelerate_npu_1gpu.yaml}"
     echo "[train_multi4_nvs_lora] accelerate     = ${ACCELERATE_CONFIG}"
-    accelerate launch --config_file "${ACCELERATE_CONFIG}" \
+    "${PYTHON_BIN}" -u -m accelerate.commands.launch --config_file "${ACCELERATE_CONFIG}" \
         -m examples.wanvideo.model_training.train_with_accelerate_rgbd_nvs \
         --config "${CONFIG}" "$@"
 else

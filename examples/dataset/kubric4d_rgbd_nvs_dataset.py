@@ -239,7 +239,120 @@ class _ViewRecord:
     depth_scale: float = 1.0
 
 
-VIEW_ORDERS = ("random", "pose", "video")
+VIEW_ORDERS = ("random", "pose", "video", "vggt")
+
+
+def _equal_chunks(pool, count):
+    """Split a contiguous index list into `count` near-equal chunks (np.array_split)."""
+    q, r = divmod(len(pool), count)
+    chunks, at = [], 0
+    for i in range(count):
+        size = q + (1 if i < r else 0)
+        chunks.append(pool[at:at + size])
+        at += size
+    return chunks
+
+
+def _vggt_sample(views, num_source, num_target, rng,
+                 local_prob=0.2, window_lo=0.15, window_hi=0.4, min_local_views=24,
+                 strata=12):
+    """Port of the VGGT-Diff NVS protocol, adapted for our capture lengths.
+
+    Original: scripts/prepare_omega_cache.py `select_sources` + vggtdiff/data.py
+    `SceneDataset.__getitem__` (nvs mode).  Two design facts from upstream:
+
+    1.  PAIRED 80/20 ARMS.  Some draws are "local": the SOURCE pool shrinks
+        to a contiguous window AND the targets are restricted to inside that
+        window.  The other draws take sources from a wider pool with targets
+        from everywhere.  The pairing is the point -- with a wide source
+        distribution an "inside the span" target is still large-baseline, so
+        randomizing only the target side produces two copies of the same task
+        instead of a dense-interpolation arm.
+
+    2.  STRATIFIED source picks.  The pool is split into `num_source` equal
+        chunks and ONE frame comes from each chunk, so consecutive sources are
+        never clustered and coverage is guaranteed; jitter inside the chunk
+        keeps the picks off a rigid grid.  The selected sources are then
+        SHUFFLED -- upstream deliberately feeds them unordered (per-frame
+        Pluecker raymaps carry the geometry; verified against their
+        prepare_omega_cache.py:49-51).
+
+    Adaptations vs upstream (our scenes span 16..2307 views; DL3DV clips are
+    homogeneous few-hundred-frame fly-throughs, ours are not):
+
+    -   The local window is RELATIVE to the clip length (uniform in
+        [window_lo, window_hi], floored at 2*num_source) instead of their
+        absolute 24-48 frames.
+    -   The global pool is NOT the whole clip: it is `num_source` consecutive
+        strata of a `strata`-stratum grid (6 of 12 by default = half the
+        capture).  A full-span stratified-6 on a 2k-view BlendedMVS ring picks
+        cameras on opposite sides that share no content; bounding the pool to
+        half the capture keeps source-source overlap bounded below while the
+        strata-granular start still sweeps the whole scene over draws.  Clips
+        shorter than 2*strata skip the windowing (the grid is finer than the
+        clip) and use everything, matching upstream there.
+
+    `views` are ordered by view_id, which the manifest audit (utils/
+    inspect_view_selection.py) confirms is a coherent capture trajectory for
+    BOTH BlendedMVS (consecutive-distance/mean-pair ~0.20) and RE10K (~0.12) --
+    a pseudo-time axis the stratification can run on.
+
+    Targets follow upstream `_sample_nvs_targets`: ordered linspace sub-span vs
+    unordered scatter, 50/50 (ordered forced at >= 8 targets).  LOCAL-arm
+    targets live inside the source span (upstream data.py:181-188); GLOBAL-arm
+    targets stay scene-wide, which is what preserves an extrapolation signal.
+    """
+    ordered = sorted(views, key=lambda v: v.view_id)
+    total = len(ordered)
+
+    for _ in range(10):
+        # upstream skips the local arm on short clips entirely
+        # (prepare_omega_cache.py:42 `frame_count >= 24`)
+        is_local = total >= min_local_views and rng.random() < local_prob
+        if is_local:
+            size_lo = max(2 * num_source, int(round(window_lo * total)))
+            size_hi = max(size_lo, min(total, int(round(window_hi * total))))
+            size_lo = min(size_lo, size_hi)
+            window = rng.randint(size_lo, size_hi)
+            start = rng.randint(0, total - window)
+            pool = list(range(start, start + window))
+        elif strata >= 2 and num_source <= strata and total >= 2 * strata:
+            # global arm: num_source consecutive strata of the strata grid
+            first = rng.randint(0, strata - num_source)
+            lo = (first * total) // strata
+            hi = ((first + num_source) * total) // strata
+            pool = list(range(lo, hi))
+        else:
+            pool = list(range(total))
+
+        source_views = []
+        for chunk in _equal_chunks(pool, num_source):
+            source_views.append(ordered[chunk[rng.randrange(len(chunk))]])
+        rng.shuffle(source_views)  # upstream shuffles; geometry is per-frame
+
+        src_ids = {v.view_id for v in source_views}
+        all_candidates = [v for v in ordered if v.view_id not in src_ids]
+        candidates = all_candidates
+        if is_local:
+            # upstream data.py:181-188 restricts targets to the SOURCE SPAN
+            # [min(src), max(src)], not the whole pool window
+            src_idx = [i for i, v in enumerate(ordered) if v.view_id in src_ids]
+            lo, hi = min(src_idx), max(src_idx)
+            local = [v for i, v in enumerate(ordered) if lo <= i <= hi and v.view_id not in src_ids]
+            if len(local) >= num_target:
+                candidates = local
+            # else: fall back to the global pool (upstream data.py:186-188)
+        if len(candidates) < num_target:
+            continue
+
+        if num_target >= 8 or rng.random() < 0.5:
+            target_views = _linspace_span(candidates, num_target, rng)
+            if target_views is None:
+                return None
+        else:
+            target_views = rng.sample(candidates, num_target)
+        return source_views, target_views
+    return None
 
 
 def _linspace_span(items, count, rng, max_span=None):
@@ -403,6 +516,11 @@ class Kubric4DRGBDNVSDataset(Dataset):
         view_order="random",
         video_tgt_interval_prob=0.2,
         video_max_src_span=None,
+        vggt_local_prob=0.2,
+        vggt_window_lo=0.15,
+        vggt_window_hi=0.4,
+        vggt_min_local_views=24,
+        vggt_strata=12,
         return_metadata=True,
         disparity_norm_mode="shared_scale",
         disparity_norm_quantile=0.98,
@@ -446,16 +564,33 @@ class Kubric4DRGBDNVSDataset(Dataset):
         self.num_target_views = int(num_target_views)
         self.num_views = self.num_source_views + self.num_target_views
         self.random_permute_source_views = random_permute_source_views
-        if view_order not in VIEW_ORDERS:
+        # view_order accepts ONE policy for every dataset, or a list parallel to
+        # manifest_path so a mixed bundle can mix protocols: unordered multi-view
+        # captures (BlendedMVS) want "pose" (deterministic camera-space path,
+        # no shuffle), video clips (RE10K) want "video" (temporal span sources,
+        # interp/extrap target mixture).  The policy travels with the record --
+        # see the raw_entries / self.records plumbing below.
+        if isinstance(view_order, str):
+            view_orders = [view_order] * len(manifests)
+        else:
+            view_orders = list(view_order)
+        if len(view_orders) != len(manifests):
             raise ValueError(
-                f"view_order must be one of {VIEW_ORDERS}, got {view_order!r}"
+                f"view_order ({len(view_orders)} entries) must match "
+                f"manifest_path ({len(manifests)} entries)"
             )
+        for order in view_orders:
+            if order not in VIEW_ORDERS:
+                raise ValueError(
+                    f"view_order must be one of {VIEW_ORDERS}, got {order!r}"
+                )
         # "pose" supersedes random_permute_source_views: both decide the order of
         # the source block, and this one is not random.  Leaving
         # random_permute_source_views=true in the config of a pose-ordered arm is
         # therefore expected, not a contradiction -- what it still controls is
         # nothing.
-        self.view_order = view_order
+        self.view_order = view_orders[0] if len(set(view_orders)) == 1 else list(view_orders)
+        self._view_orders = view_orders
         # view_order="video" only: probability that target candidates shrink to
         # the source time interval (interp-heavy).  0.2 reproduces the
         # VGGT-Diff 80/20 protocol; 1.0 makes EVERY target an interpolation,
@@ -475,6 +610,28 @@ class Kubric4DRGBDNVSDataset(Dataset):
                 f"video_max_src_span must be >= num_source_views "
                 f"({self.num_source_views}), got {video_max_src_span!r}"
             )
+        # view_order="vggt" only: paired-arm probability of the LOCAL arm
+        # (source pool shrinks to a relative window AND targets restricted to
+        # inside it) and the window size as a fraction of the clip length.
+        self.vggt_local_prob = float(vggt_local_prob)
+        if not 0.0 <= self.vggt_local_prob <= 1.0:
+            raise ValueError(
+                f"vggt_local_prob must be in [0, 1], got {vggt_local_prob!r}"
+            )
+        self.vggt_window_lo = float(vggt_window_lo)
+        self.vggt_window_hi = float(vggt_window_hi)
+        if not 0.0 < self.vggt_window_lo <= self.vggt_window_hi <= 1.0:
+            raise ValueError(
+                f"vggt window fractions must satisfy 0 < lo <= hi <= 1, got "
+                f"({vggt_window_lo!r}, {vggt_window_hi!r})"
+            )
+        # clips shorter than this never take the local arm (upstream guard)
+        self.vggt_min_local_views = int(vggt_min_local_views)
+        # global arm: the source pool is num_source consecutive strata of this
+        # many strata across the scene (6 of 12 = half the capture)
+        self.vggt_strata = int(vggt_strata)
+        if self.vggt_strata < 2:
+            raise ValueError(f"vggt_strata must be >= 2, got {vggt_strata!r}")
         self.return_metadata = return_metadata
         if disparity_norm_mode not in ("shared_scale", "per_view"):
             raise ValueError(
@@ -498,15 +655,19 @@ class Kubric4DRGBDNVSDataset(Dataset):
         view_validity = self._load_view_validity()
 
         raw_entries = []
-        for root, manifest, filter_i in zip(roots, manifests, scene_filters):
+        for manifest_idx, (root, manifest, filter_i) in enumerate(
+            zip(roots, manifests, scene_filters)
+        ):
             dataset_name = os.path.basename(os.path.normpath(str(root)))
             for record in _read_json_or_jsonl(_resolve_path(root, manifest)):
-                raw_entries.append((root, dataset_name, filter_i, record))
+                raw_entries.append(
+                    (root, dataset_name, filter_i, self._view_orders[manifest_idx], record)
+                )
 
         self.records = []
         dropped_views = 0
         dropped_scenes = 0
-        for record_idx, (root, dataset_name, filter_i, record) in enumerate(raw_entries):
+        for record_idx, (root, dataset_name, filter_i, record_view_order, record) in enumerate(raw_entries):
             scene_id = str(record.get("scene_id", record.get("scene", record_idx)))
             if filter_i is not None and filter_i not in scene_id:
                 continue
@@ -547,6 +708,7 @@ class Kubric4DRGBDNVSDataset(Dataset):
                         "time_id": time_id,
                         "views": normalized_views,
                         "dataset": dataset_name,
+                        "view_order": record_view_order,
                     }
                 )
 
@@ -678,6 +840,10 @@ class Kubric4DRGBDNVSDataset(Dataset):
             self.deterministic_view_seed + int(idx)
         )
 
+        # Mixed bundles carry the policy ON the record (one dataset per manifest,
+        # one protocol per dataset); single-policy bundles all share the value.
+        record_view_order = record.get("view_order", self.view_order)
+
         # video mode selects WHICH views, not just their order: sources come
         # from a temporal span and targets from a 50/50 ordered/unordered draw
         # (see _video_sample).  It is its own early branch because the existing
@@ -685,7 +851,23 @@ class Kubric4DRGBDNVSDataset(Dataset):
         # video mode must pick sources first (the target interval depends on
         # them).  It consumes only the `rng` above, so a frozen
         # deterministic_view_seed eval stays a pure function of (seed, idx).
-        if self.view_order == "video":
+        if record_view_order == "vggt":
+            result = _vggt_sample(
+                views, self.num_source_views, self.num_target_views, rng,
+                local_prob=self.vggt_local_prob,
+                window_lo=self.vggt_window_lo,
+                window_hi=self.vggt_window_hi,
+                min_local_views=self.vggt_min_local_views,
+                strata=self.vggt_strata,
+            )
+            if result is None:
+                raise ValueError(
+                    f"view_order='vggt' could not draw {self.num_source_views} source + "
+                    f"{self.num_target_views} target views from {len(views)} views."
+                )
+            return result
+
+        if record_view_order == "video":
             result = _video_sample(
                 views, self.num_source_views, self.num_target_views, rng,
                 tgt_interval_prob=self.video_tgt_interval_prob,
@@ -707,9 +889,9 @@ class Kubric4DRGBDNVSDataset(Dataset):
         # eval set (deterministic_view_seed) stays paired with every run that
         # predates view_order, down to which views are targets.  Only the order
         # inside the source block changes.
-        if self.view_order == "pose":
+        if record_view_order == "pose":
             source_views = _order_source_views_by_pose(source_views, target_views)
-        elif self.random_permute_source_views:
+        elif record_view_order == "random" and self.random_permute_source_views:
             rng.shuffle(source_views)
 
         return source_views, target_views
