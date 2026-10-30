@@ -124,3 +124,27 @@ ls rgbd_video_gen_gae/logs/gae_re10k_rgb_aux_shift45_*/eval_step_*/
 # tensorboard
 tensorboard --logdir rgbd_video_gen_gae/logs/gae_re10k_rgb_aux_shift45_*/tensorboard
 ```
+
+## 8. 本地 3 卡 run 启动记录(2026-10-31 01:37)
+
+- 启动方式:`scripts/launch_local_3npu_shift45.sh`(setsid 脱离会话,NPU 4/5/6,
+  accelerate DDP 3 进程 × bs16;0–3 卡被其它任务占用,避开)。
+- run 目录:`logs/gae_re10k_rgb_aux_shift45_20261031_013720`(指针存于
+  `logs/.latest_shift45`)。
+- 启动横幅确认:`rgb_flow_shift=4.5 (auto=False)`、`rgb_aux=1.0@t<=0.6` ✓
+- **sigma_mean 实测 0.745 / 0.741,与预测 0.78 吻合**(旧 arm 是 0.90)——
+  训练分布下移生效,模型开始大量见到 σ<0.6 的样本。
+- 初期 loss 2.13 → 2.09:loss 绝对值与 σ 分布耦合,**与旧 arm 的 0.47 不可
+  直接对比**,只看本 arm 内趋势;rgb_aux 初值 0.135(σ 更低时 x_pred 更可信,
+  L1 尺度也更真实)。
+- 速度:~6 s/step(global,含 DDP 同步),约为集群单卡吞吐的 7 倍;
+  step 1000 首个 eval(含 LPIPS)约 1 小时后可见。
+- 集群旧 run(shift 13.5)仍在跑(step 12230+),写旧仓 NFS 日志,互不影响。
+
+### 后续验收节点
+
+| 节点 | 看什么 | 达标判据 |
+|---|---|---|
+| step 1000(首个 eval) | `tgt_rgb_lpips` 非 NaN | lpips 在本地环境正常出数 |
+| step 2000–5000 | eval 可视化 `eval_step_*` | 目标视角不再灰 mush,纹理出现 |
+| step 5000+ | PSNR vs LPIPS 权衡 | PSNR 回落可接受,LPIPS 显著低于旧 arm A(0.79) |
