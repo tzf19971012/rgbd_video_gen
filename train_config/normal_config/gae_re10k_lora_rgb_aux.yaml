@@ -1,0 +1,88 @@
+# =============================================================================
+# GAE-64 latent + RGB aux loss — re10k 全量训练（替代 bmvs 过拟合 arm）
+# 前身：gae_ovf_bmvs_lora_rgb_aux.yaml（bmvs 前 8 场景过拟合）。
+# 数据切换为 re10k（cache=re10k_train，7884 场景 x 16 views，latent_stats.pt 就位）。
+#
+# 相对 bmvs arm 的其它调整：
+#   * resolution [378,504] -> [378,672]：对齐 re10k 缓存的编码分辨率（27x48 网格，
+#     auto flow shift 随之 11.7 -> 13.5，sigma 更向高段集中，t_max=0.9 仍适用）
+#   * batch_size 1 -> 16，gradient_accumulation_steps 4 -> 1：有效 batch 4 -> 16，
+#     单卡吞吐优先（bs=8 实测 HBM 26.7/64GB，16 约 40GB）
+#   * num_train_samples 8 -> 不截断：全量 7884 场景（max_steps 3000 只见一小部分，
+#     过拟合风险低）
+#   * validate_step 200 -> 250（3 步 eval 对齐 3000 步）
+#   * eval 沿用 GAE trainer 约定：训练场景浅拷贝做监控；
+#     冻结测试集（re10k_test cache + manifest_test.jsonl）用 eval_script 单独评
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/gae_re10k_lora_rgb_aux"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null                 # 默认解析到 <cache>/re10k_train/latent_stats.pt
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: true
+rgb_flow_shift: 5.0
+vae_encoding_mode: "independent"
+
+# --- RGB aux loss -------------------------------------------------------------
+gae_rgb_loss_weight: 1.0        # 0 = 关闭
+gae_rgb_t_max: 0.9              # sigma 低于此值才解码监督
+gae_rgb_max_views: 1            # 每样本每步最多解码几个 target view
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1
+batch_size: 16
+num_epochs: 1000000
+max_steps: 100000
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 1000
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution (multiple of 14; 对齐 re10k 缓存 27x48 网格) ------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K ------------------------------------------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 10
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 4
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 8

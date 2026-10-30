@@ -1,0 +1,123 @@
+# =============================================================================
+# 过拟合对比 arm B — Wan-VAE latent（现框架基线）
+# 与 gae_ovf_bmvs_lora.yaml（arm A，GAE-64 latent）成对，协议逐字段对齐
+# （见 arm A 头注释）。差异即实验变量：
+#   * 生成状态 = Wan-VAE latent，RGB/视差双头联合 rectified flow
+#   * 条件机制取父框架最接近 GAE 臂的最小配置：plucker latent/add、无 warp、
+#     channel layout（不带 sequence/splat 等 sweep 项）
+# 分辨率 384x672（Wan VAE 8x 压缩 + patch(1,2,2) 友好）。
+# =============================================================================
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_wanvae_bmvs_lora"
+
+strip_i2v_image_input: false
+mode: rgbd_nvs
+training_target: "x"
+denoise_step: 0.5
+training_scheduler_timesteps: 1
+validation_scheduler_timesteps: 1
+
+trainable_models: "dit"
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+
+mixed_precision: "bf16"
+learning_rate: 1.0e-4
+warmup_steps: 0
+lr_decay_steps: 0
+lr_min: 0.0
+gradient_accumulation_steps: 4
+batch_size: 1
+num_epochs: 1000000
+max_steps: 800
+max_train_steps: 800
+log_step: 10
+clip_grad_norm: true
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+
+resume: false
+training_state_dir: "na"
+global_step: 0
+
+scene_filter: null
+split_path: null
+train_split: null
+eval_split: null
+min_view_valid_fraction: 0.0
+
+resolution: [384, 672]
+num_source_views: 6
+num_target_views: 3
+vae_encoding_mode: "independent"
+random_permute_source_views: true
+init_dvd_ckpt: null
+
+disparity_norm_mode: "shared_scale"
+disparity_norm_quantile: 0.98
+disparity_norm_headroom: 1.5
+
+# 与 GAE 臂的条件机制对齐：plucker latent/add + role，无 warp
+view_condition_plucker_resolution: "latent"
+view_condition_pixel_scale: 8
+view_condition_mode: "add"
+view_condition_normalize_moment: false
+view_condition_use_role: true
+
+latent_scale: 1.94
+depth_latent_scale: 1.68
+token_layout: "channel"
+warp_mode: "none"
+per_frame_timestep: false
+depth_warp_block: false
+
+rgb_flow_matching: true
+rgb_flow_shift: 5.0
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: 0.0
+rgb_flow_logit_std: 1.0
+
+depth_flow_matching: true
+depth_head_init: "pretrained"
+
+rgb_loss_weight: 1.0
+depth_loss_weight: 1.0
+rgb_loss_type: "mse"
+depth_loss_type: "mse"
+
+depth_consist_scale_weight: 0.0
+depth_consist_repro_weight: 0.0
+clean_source_depth: false
+clean_source_depth_prob: 0.5
+shared_rope_frame_ids: false
+rope_frame_axis: null
+rope_pose_translation_scale: null
+roce: "off"
+camera_geometry_fp32: false
+
+view_order: "random"
+
+kubric4d_root: "/mnt/sfs_turbo/t00845730/data/blendedmvs/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/data/blendedmvs/manifest_all.jsonl"
+samples_per_scene: 4
+num_train_samples: 8
+dataloader_num_workers: 4
+
+seed: 42
+
+# --- Eval（与 GAE 臂一致：4 步 ODE、冻结视图采样）---
+validate_step: 200
+init_validate: false
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_sample_seed: 1234
+eval_num_inference_steps: 4
+eval_flow_shift: null
+max_checkpoints: 3

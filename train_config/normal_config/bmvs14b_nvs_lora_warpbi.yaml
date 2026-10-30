@@ -1,0 +1,167 @@
+# BlendedMVS 单数据集 + Wan2.1-I2V-14B-720P 基模（裁剪为 T2V 结构）LoRA 微调
+# warpbi 对照 arm：与 bmvs14b_nvs_lora.yaml 唯一差异是
+# warp_splat_footprint: "bilinear"（splat 落点 2x2 双线性足迹，
+# utils/warp.py footprint="bilinear"，对照 arm 缺省为 nearest）。
+# 单变量对照（与 bmvs14b_nvs_lora.yaml 只差 warp_splat_footprint）。
+# 6 卡 NPU（1,3,4,5,6,7）启动（全局 batch = 1x8x6 = 48，与 nearest 基线一致）：
+#   ASCEND_RT_VISIBLE_DEVICES=1,3,4,5,6,7 USE_ACCELERATE=1 \
+#   ACCELERATE_CONFIG=train_config/accelerate_config/accelerate_npu6.yaml \
+#   PYTHON=/data/l00580360/miniconda3/envs/wan14b/bin/python \
+#   bash train_script/train_multi4_nvs_lora.sh train_config/normal_config/bmvs14b_nvs_lora_warpbi.yaml
+model_id_with_origin_paths: "Wan-AI/Wan2.1-I2V-14B-720P:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+
+# ===========================================================================
+# 平台相关路径（切换平台/机器时只需要修改这一段）
+# ===========================================================================
+# Wan2.1 权重根目录：其下应包含 Wan-AI/Wan2.1-I2V-14B-720P/（软链）和 Wan-AI/Wan2.1-T2V-1.3B/
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+# 权重已在本地时设为 true，跳过 ModelScope 下载
+skip_download: true
+# BlendedMVS 解包后数据根（其下是 <scene>/xxxx.exr|.jpg）
+kubric4d_root: "/mnt/sfs_turbo/t00845730/data/blendedmvs/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/data/blendedmvs/manifest_train.jsonl"
+# 训练输出目录
+output_path: "logs/bmvs14b_nvs_lora_warpbi"
+
+# I2V 权重裁剪：删除 img_emb / 各块 cross_attn 的 k_img/v_img，patch_embedding 36->16 通道
+strip_i2v_image_input: true
+
+mode: rgbd_nvs
+# Joint RGB-D rectified flow: BOTH heads regress a velocity, share one sigma,
+# and both modalities are noised into the DiT input.
+training_target: "x"
+denoise_step: 0.5
+training_scheduler_timesteps: 1
+validation_scheduler_timesteps: 1
+
+trainable_models: "dit"
+# ---- LoRA 微调 ----
+train_all: false
+lora_base_model: "dit"
+lora_rank: 32
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+
+mixed_precision: "bf16"
+learning_rate: 1.0e-4
+warmup_steps: 100
+lr_decay_steps: 0
+lr_min: 0.0
+
+num_epochs: 1000000
+max_steps: 500000
+max_train_steps: 500000
+log_step: 10
+clip_grad_norm: true
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+
+# 从 step-100 checkpoint 续训（第一次 eval 后 HCCL 1800s 超时全体 abort，
+# checkpoint 完好；启动时须 export HCCL_EXEC_TIMEOUT=14400 放宽等待窗口，
+# 否则 rank0-only eval 超过 30min 会复现同样的死法）。
+resume: true
+training_state_dir: "logs/bmvs14b_nvs_lora_warpbi/checkpoint-step-100"
+global_step: 100
+
+# 单数据集写标量（与 multi4 列表写法等价）
+scene_filter: null
+# 无冻结 split：train 用全部场景，eval 走脚本的 train 浅拷贝分支
+split_path: null
+train_split: null
+eval_split: null
+min_view_valid_fraction: 0.0
+
+resolution: [384, 672]
+num_source_views: 6
+num_target_views: 3
+vae_encoding_mode: "independent"
+random_permute_source_views: true
+init_dvd_ckpt: null
+
+disparity_norm_mode: "shared_scale"
+disparity_norm_quantile: 0.98
+disparity_norm_headroom: 1.5
+
+view_condition_plucker_resolution: "pixel"
+view_condition_pixel_scale: 8
+view_condition_mode: "concat"
+view_condition_normalize_moment: true
+view_condition_use_role: false
+
+# a8: latent scaling + sequence token layout + splat warp channel.
+latent_scale: 1.94
+depth_latent_scale: 1.68
+token_layout: "sequence"
+warp_mode: "splat"
+# bi arm 的唯一变量：splat 落点用 2x2 双线性足迹（缺省 nearest）。
+warp_splat_footprint: "bilinear"
+warp_dropout_prob: 0.5
+warp_two_pass: true
+
+warp_perturb_prob: 0.0
+warp_perturb_gain_log_std: 0.34
+warp_perturb_shift_std: 0.059
+warp_perturb_blur_sigma: 2.0
+warp_perturb_lowfreq_std: 0.05
+warp_perturb_lowfreq_cells: 6
+warp_perturb_fill_invalid: true
+warp_perturb_fill_scale: 1.0
+per_frame_timestep: true
+depth_warp_block: false
+
+rgb_flow_matching: true
+rgb_flow_shift: 5.0
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: 0.0
+rgb_flow_logit_std: 1.0
+
+depth_flow_matching: true
+depth_head_init: "pretrained"
+
+rgb_loss_weight: 1.0
+depth_loss_weight: 1.0
+rgb_loss_type: "mse"
+depth_loss_type: "mse"
+
+# f-consist 默认关闭
+depth_consist_scale_weight: 0.0
+depth_consist_repro_weight: 0.0
+depth_consist_sigma_max: 0.6
+depth_consist_num_views: 3
+depth_consist_max_samples: 2
+depth_consist_min_support: 0.02
+depth_consist_ratio_clip: 4.0
+depth_consist_trim_quantile: 0.9
+depth_consist_vae_checkpoint: true
+
+clean_source_depth: false
+clean_source_depth_prob: 0.5
+shared_rope_frame_ids: false
+rope_frame_axis: null
+rope_pose_translation_scale: null
+roce: "off"
+camera_geometry_fp32: false
+view_order: "random"
+
+samples_per_scene: 10
+
+# 14B LoRA 显存紧：单卡 bs=1, accum 8（6 卡全局 48）。
+# bs=2 + accum 4 已实测 NPU OOM（driver error: out of memory），勿再试。
+batch_size: 1
+gradient_accumulation_steps: 8
+dataloader_num_workers: 4
+
+seed: 42
+
+# --- Eval（采样自训练场景，仅作训练监控）---
+validate_step: 100
+init_validate: false
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_sample_seed: 1234
+eval_num_inference_steps: 25
+eval_flow_shift: 0.5
+eval_vis_downscale: 2
+eval_vis_format: "jpg"
+eval_vis_chunks: 2
+max_checkpoints: 8

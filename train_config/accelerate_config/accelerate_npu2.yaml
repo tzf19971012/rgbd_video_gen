@@ -1,0 +1,20 @@
+compute_environment: LOCAL_MACHINE
+debug: false
+
+distributed_type: 'MULTI_NPU'
+
+num_processes: 2
+num_machines: 1
+machine_rank: 0
+main_training_function: main
+
+mixed_precision: bf16
+
+use_cpu: false
+enable_cpu_affinity: false
+downcast_bf16: "no"
+
+same_network: true
+tpu_env: []
+tpu_use_cluster: false
+tpu_use_sudo: false

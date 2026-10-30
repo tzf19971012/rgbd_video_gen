@@ -1,0 +1,85 @@
+# =============================================================================
+# GAE-latent NVS on Wan2.1 DiT (Phase 2) — LoRA on BlendedMVS
+#
+# Generated state = standardized GAE-64 latent (one frame per view), produced
+# by the offline cache (utils/cache_gae_latents.py, dataset "bmvs"). Sources
+# enter as clean evidence tokens pinned at timestep 0; cameras enter as a
+# metric Plucker field at the 14px latent grid; depth is a decode product of
+# the frozen DPT head, not a prediction target.
+#
+# Prerequisite: gae_latent_cache/bmvs fully populated (497/497) — the module
+# raises on cache misses instead of silently zero-filling.
+# =============================================================================
+
+# --- platform paths ----------------------------------------------------------
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"   # holds Wan-AI/Wan2.1-T2V-1.3B/
+skip_download: true
+output_path: "logs/gae_nvs_bmvs_lora"
+
+# Dit weights ONLY: no VAE (latents come from the GAE cache), no text encoder
+# (the null embed is precomputed and loaded by the module).
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "bmvs"
+gae_stats_path: null            # default: <cache>/bmvs/latent_stats.pt
+gae_rope_frame_axis: "view"     # frame v gets RoPE id v; "constant" removes the label
+gae_auto_flow_shift: true       # shift = sqrt(V*h*w*64 / 4096) ~ 11.9 for 9 views @ 378x504
+rgb_flow_shift: 5.0             # overridden by the auto shift above
+vae_encoding_mode: "independent"  # unused (no Wan VAE), kept for the parent's checks
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+gradient_accumulation_steps: 4
+batch_size: 1
+num_epochs: 1000000
+max_steps: 20000
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+warmup_steps: 0
+log_step: 10
+validate_step: 500
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution (multiples of 14 for the DA3 patch grid) ---------------------
+resolution: [378, 504]
+
+# --- data: BlendedMVS --------------------------------------------------------
+# kubric4d_root points at the EXTRACTED dir: manifest rgb/depth paths are
+# relative to it. disparity_norm_mode="metric" keeps c2w translations in
+# meters — the GAE ray field's scale anchor.
+kubric4d_root: "/mnt/sfs_turbo/t00845730/data/blendedmvs/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/data/blendedmvs/manifest_all.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.25   # drop the hole-heavy MVS views
+samples_per_scene: 4
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 4
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 3

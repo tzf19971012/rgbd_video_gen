@@ -1,0 +1,129 @@
+## DL3DV_WAI 2-scene overfit (10-14): INTERP-ONLY targets arm.
+## Same recipe as dl3dv2_overfit_seq6s3t_video except video_tgt_interval_prob=1.0:
+## every target view is drawn from inside the src temporal span (pure
+## interpolation), testing whether removing extrapolation targets speeds up
+## convergence.  warp stays OFF (the bilinear-splat scheme is not used here).
+
+## DL3DV_WAI 2-scene overfit (10-14): fm27c-style joint RGB-D flow matching on
+## the two usable DL3DV clips (9K-83c68b0d 329 frames, 9K-96f8dae3 355 frames;
+## the 3K-28f5acad clip has no usable RGB -- images_use empty, dead symlinks).
+##
+## Differences from dl3dv2_overfit_seq5s1t: 6 src + 3 tgt (the VGGT-Diff
+## released training protocol "expects six source views") and view_order
+## "video" -- VGGT-Diff-style video-temporal view sampling instead of fully
+## random draws:
+##   * src: ordered temporal span + linspace (examples/dataset/
+##     kubric4d_rgbd_nvs_dataset.py::_video_sample, ported from VGGT-Diff
+##     vggtdiff/data.py:72-84), so the RoPE frame axis is a TIME axis;
+##   * tgt: 20% probability restricted to the src time interval (interp-heavy,
+##     data.py:181-188 probabilistic version), 80% global;
+##   * tgt draw: 50% ordered sub-span / 50% unordered scatter
+##     (_sample_nvs_targets data.py:61-84, target_count=3).
+## Everything else identical to the fm27c/seq5s1t recipe: sequence layout,
+## per-frame timestep (src RGB pinned to t=0), concat Pluecker (pixel), LoRA
+## 512, logit-normal(-1,1) sigma with shift 5, shared-scale disparity q98
+## headroom 1, lr 1e-4 constant, warp off, no DVD init.
+##
+## RISK: 9 views per sample vs 6 before -- sequence tokens x1.5, attention
+## x2.25, so batch_size 4 may OOM on the NPU.  Smoke-test at bs=4 first; if it
+## OOMs, drop to bs=2 (keep gradient_accumulation_steps=1).  Note the
+## shared_scale disparity pool still uses SOURCE views only (unchanged).
+
+# 9_22 train script only supports the model_id route: with skip_download it
+# globs <wan_model_root>/<model_id>/<origin_file_pattern>, pointing at the
+# local Wan2.1-T2V-1.3B checkout.
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+wan_model_root: "/mi/data2T/t00845730/wan21"
+skip_download: true
+
+task_type: pose_known_nvs
+dataset_type: kubric4d
+kubric4d_root: "/mi/data2T/y00959808/data/sample_data/DL3DV_WAI"
+manifest_path: "/mi/sfs_turbo/t00845730/dl3dv/manifest.jsonl"
+
+mode: rgbd_nvs
+training_target: "x"
+denoise_step: 0.5
+training_scheduler_timesteps: 1
+validation_scheduler_timesteps: 1
+
+trainable_models: "dit"
+train_all: false
+lora_base_model: "dit"
+lora_rank: 512
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+
+gradient_accumulation_steps: 1
+mixed_precision: "bf16"
+learning_rate: 1.0e-4
+warmup_steps: 0
+num_epochs: 1000000
+max_steps: 3000
+log_step: 20
+validate_step: 100
+init_validate: true
+clip_grad_norm: true
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+
+resume: true
+training_state_dir: "logs/dl3dv2_overfit_seq6s3t_video_interp/checkpoint-step-200"
+output_path: "logs/dl3dv2_overfit_seq6s3t_video_interp"
+global_step: 200
+init_dvd_ckpt: null
+init_weights_ckpt: null
+depth_head_init: "pretrained"
+
+roce: "off"
+eval_num_inference_steps: 25
+rgb_flow_matching: true
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_shift: 5.0
+rgb_flow_logit_mean: -1.0
+rgb_flow_logit_std: 1.0
+rgb_loss_weight: 10.0
+depth_loss_weight: 3.0
+depth_loss_type: "mse"
+
+# Disparity also on rectified flow (joint flow): both heads regress a velocity.
+depth_flow_matching: true
+token_layout: "sequence"
+per_frame_timestep: true
+
+# Shared-scale disparity normalization (same as fm27c).
+disparity_norm_mode: "shared_scale"
+disparity_norm_quantile: 0.98
+disparity_norm_headroom: 1.0
+
+resolution: [384, 672]
+num_source_views: 6
+num_target_views: 3
+view_order: "video"
+# Fast-convergence arm: EVERY target is an interpolation inside the
+# src time interval (VGGT-Diff 80/20 with prob pushed to 1.0).  No warp
+# conditioning here -- bilinear-splat scheme deliberately left out.
+video_tgt_interval_prob: 1.0
+# Cap source span at 30 frames: this clip moves ~1.45 normalized units per 9
+# frames, so a wide span puts even interpolated targets far from every src.
+video_max_src_span: 30
+random_permute_source_views: false
+min_view_valid_fraction: 0.5
+
+vae_encoding_mode: "independent"
+view_condition_mode: "concat"
+view_condition_use_role: false
+view_condition_normalize_moment: true
+view_condition_plucker_resolution: "pixel"
+view_condition_pixel_scale: 8
+
+batch_size: 8
+dataloader_num_workers: 4
+samples_per_scene: 8
+
+seed: 42
+max_checkpoints: 3
+eval_max_samples: 2
+eval_view_seed: 1234
+eval_sample_seed: 1234
+eval_vis_downscale: 2
+eval_vis_format: "jpg"

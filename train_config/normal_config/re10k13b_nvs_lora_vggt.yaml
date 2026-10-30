@@ -1,0 +1,191 @@
+# ===========================================================================
+# re10k-only 1.3B 消融 A2 arm：view_order="vggt"（VGGT-Diff 配对 80/20 arm）。
+# 与 re10k13b_nvs_lora_rand.yaml（view_order="random"）成对比较，回答
+# "结构化配对采样协议是否优于全随机"。
+#
+# vggt 采样语义（examples/dataset/kubric4d_rgbd_nvs_dataset.py::_vggt_sample）：
+#   * local arm（vggt_local_prob=0.2）：source pool 收缩到 clip 的
+#     [window_lo, window_hi] 连续窗口，且 target 限制在 source span 内
+#     —— 小基线稠密内插任务；
+#   * global arm（80%）：source 取 strata 网格上 num_source 个连续层
+#     （默认 6/12 = 半段 capture），target 全场景 —— 保留外插信号；
+#   * source 分层抽取后打乱喂入（逐帧 Plucker 携带几何）。
+#   内外插配比旋钮即 vggt_local_prob；后续 B 组消融扫 0.2 -> 0.5/更高。
+#
+# 两 arm 对齐约定（除 view_order / vggt_* 外逐字段一致，否则归因无效）：
+#   * Wan2.1-T2V-1.3B + 全新 LoRA r32：resume=false，两 arm 同一起点
+#   * re10k-only 数据（不混 bmvs），max_steps=3000（沿用 dl3dv2 1.3B 预算）
+#   * batch_size 8 x accum 1（6 卡全局 48），seed=42
+#   * 第二 seed：YUNDAO_SEED=43 或 dotlist seed=43
+# 评测注意：eval dataset 会继承本配置的 view_order。对比两 arm 时评测侧必须
+# 统一固定采样（如 --view-order random + 相同 view_seed），指标才可比。
+#
+# 本地启动（6 卡 NPU）：
+#   USE_ACCELERATE=1 ACCELERATE_CONFIG=train_config/accelerate_config/accelerate_npu6.yaml \
+#   bash train_script/train_multi4_nvs_lora.sh train_config/normal_config/re10k13b_nvs_lora_vggt.yaml
+# 云道启动（每实验 6 卡）：
+#   bash train_script/yundao_train_re10k13b_vggt.sh
+# ===========================================================================
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+
+# ===========================================================================
+# 平台相关路径（切换平台/机器时只需要修改这一段；云道上可用
+# YUNDAO_RE10K_ROOT / YUNDAO_RE10K_MANIFEST 或 dotlist 覆盖）
+# ===========================================================================
+# Wan2.1 权重根目录：其下应包含 Wan-AI/Wan2.1-T2V-1.3B/
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+# 权重已在本地时设为 true，跳过 ModelScope 下载
+skip_download: true
+# re10k 数据根目录：其下应有 extracted/ 和 manifest_train.jsonl
+sample_data_root: "/mnt/sfs_turbo/t00845730/re10k"
+kubric4d_root: ${sample_data_root}/extracted
+manifest_path: ${sample_data_root}/manifest_train.jsonl
+# 训练输出目录（云道上由启动脚本的时间戳目录接管）
+output_path: "logs/re10k13b_nvs_lora_vggt"
+
+# T2V-1.3B 原生 T2V 结构，无需 I2V 裁剪（14B 才需要 strip_i2v_image_input）
+strip_i2v_image_input: false
+
+mode: rgbd_nvs
+# Joint RGB-D rectified flow: BOTH heads regress a velocity, share one sigma,
+# and both modalities are noised into the DiT input.
+training_target: "x"
+denoise_step: 0.5
+training_scheduler_timesteps: 1
+validation_scheduler_timesteps: 1
+
+trainable_models: "dit"
+# ---- LoRA 微调（rank 与 14B 配方一致）----
+train_all: false
+lora_base_model: "dit"
+lora_rank: 32
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+
+mixed_precision: "bf16"
+learning_rate: 1.0e-4
+warmup_steps: 100
+lr_decay_steps: 0
+lr_min: 0.0
+
+num_epochs: 1000000
+max_steps: 3000
+max_train_steps: 3000
+log_step: 10
+clip_grad_norm: true
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+
+# 全新 LoRA：不加载任何 checkpoint，两 arm 从同一起点开始
+resume: false
+global_step: 0
+
+# re10k-only，单数据集写标量
+scene_filter: null
+# 无冻结 split：train 用全部场景，eval 走脚本的 train 浅拷贝分支；
+# 冻结测试集（manifest_test.jsonl）走 eval_script/eval_testset.py 单独评
+split_path: null
+train_split: null
+eval_split: null
+min_view_valid_fraction: 0.0
+
+resolution: [384, 672]
+num_source_views: 6
+num_target_views: 3
+vae_encoding_mode: "independent"
+random_permute_source_views: true
+init_dvd_ckpt: null
+
+disparity_norm_mode: "shared_scale"
+disparity_norm_quantile: 0.98
+disparity_norm_headroom: 1.5
+
+view_condition_plucker_resolution: "pixel"
+view_condition_pixel_scale: 8
+view_condition_mode: "concat"
+view_condition_normalize_moment: true
+view_condition_use_role: false
+
+# a-sweep a8: latent scaling + sequence token layout + splat warp channel.
+latent_scale: 1.94
+depth_latent_scale: 1.68
+token_layout: "sequence"
+warp_mode: "splat"
+warp_dropout_prob: 0.5
+warp_two_pass: true
+
+warp_perturb_prob: 0.0
+warp_perturb_gain_log_std: 0.34
+warp_perturb_shift_std: 0.059
+warp_perturb_blur_sigma: 2.0
+warp_perturb_lowfreq_std: 0.05
+warp_perturb_lowfreq_cells: 6
+warp_perturb_fill_invalid: true
+warp_perturb_fill_scale: 1.0
+per_frame_timestep: true
+depth_warp_block: false
+
+rgb_flow_matching: true
+rgb_flow_shift: 5.0
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: 0.0
+rgb_flow_logit_std: 1.0
+
+depth_flow_matching: true
+depth_head_init: "pretrained"
+
+rgb_loss_weight: 1.0
+depth_loss_weight: 1.0
+rgb_loss_type: "mse"
+depth_loss_type: "mse"
+
+# f-consist 默认关闭
+depth_consist_scale_weight: 0.0
+depth_consist_repro_weight: 0.0
+depth_consist_sigma_max: 0.6
+depth_consist_num_views: 3
+depth_consist_max_samples: 2
+depth_consist_min_support: 0.02
+depth_consist_ratio_clip: 4.0
+depth_consist_trim_quantile: 0.9
+depth_consist_vae_checkpoint: true
+
+clean_source_depth: false
+clean_source_depth_prob: 0.5
+shared_rope_frame_ids: false
+rope_frame_axis: null
+rope_pose_translation_scale: null
+roce: "off"
+camera_geometry_fp32: false
+
+# ---- A2 arm：VGGT-Diff 配对 80/20 arm ----
+view_order: "vggt"
+# 显式写出全部 vggt 旋钮（数值与 _vggt_sample 默认一致），保证可复现、
+# 也方便后续 B 组只动 vggt_local_prob
+vggt_local_prob: 0.2
+vggt_window_lo: 0.15
+vggt_window_hi: 0.4
+vggt_min_local_views: 24
+vggt_strata: 12
+
+samples_per_scene: 10
+
+# 1.3B 显存富余：单卡 bs=8, accum 1（6 卡全局 48）
+batch_size: 8
+gradient_accumulation_steps: 1
+dataloader_num_workers: 4
+
+seed: 42
+
+# --- Eval（采样自训练场景，仅作训练监控）---
+validate_step: 100
+init_validate: false
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_sample_seed: 1234
+eval_num_inference_steps: 25
+eval_flow_shift: 0.5
+eval_vis_downscale: 2
+eval_vis_format: "jpg"
+eval_vis_chunks: 2
+max_checkpoints: 8

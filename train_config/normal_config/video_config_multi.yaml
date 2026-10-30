@@ -1,0 +1,149 @@
+# =============================================================================
+# 平台相关路径（切换平台/机器时只需要修改这一段）
+# =============================================================================
+
+# Wan2.1 权重根目录：其下应包含 Wan-AI/Wan2.1-T2V-1.3B/ 目录
+# （即 ${wan_model_root}/Wan-AI/Wan2.1-T2V-1.3B/diffusion_pytorch_model.safetensors 等文件）
+wan_model_root: "/mi/sfs_turbo/t00845730/9_22_code/DVD-main/DVD-main/models"
+# 权重已在本地时设为 true，跳过 ModelScope 下载
+skip_download: true
+
+# 训练/验证数据集的公共根目录：其下应包含 BlendedMVS/ GTA-SfM/ MatrixCity/ TartanAir/
+sample_data_root: "/mi/data2T/y00959808/data/sample_data"
+
+# 训练输出目录（checkpoint / 日志 / 验证可视化）
+output_path: "outputs/video_multi_exp"
+
+# 可选：测试集路径（不用的测试集把 enable 设为 false 即可，不用管路径）
+kitti_vid_test_data_root: ""
+scannet_vid_test_data_root: ""
+nyuv2_test_data_root: ""
+
+# =============================================================================
+# 模型（一般不用改）
+# =============================================================================
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+training_target: "x"
+
+lora_base_model: "dit"
+lora_rank: 512
+
+# =============================================================================
+# 训练超参（继承自 video_config_new.yaml）
+# =============================================================================
+# Loss
+grad_loss: true
+grad_co: 0.5
+use_latent_flow: true
+
+# Load and save
+resume: false
+training_state_dir: "na"
+load_optimizer: false
+global_step: 0
+
+num_epochs: 1000000
+gradient_accumulation_steps: 4
+validate_step: 100
+init_validate: true
+
+clip_grad_norm: true
+learning_rate: 1e-4
+use_gradient_checkpointing: true
+log_step: 10
+no_extra_frame: true
+warmup_steps: 0
+mixed_precision: "bf16"
+train_all: false
+
+# validate
+denoise_strength: 1
+validation_scheduler_timesteps: 1
+
+# dataloader
+dataloader_num_workers: 4
+train_ratio: 1
+
+# 每个 clip 的帧数/步长（可被单个数据集的同名配置覆盖）
+max_num_frame: 45
+min_num_frame: 45
+max_sample_stride: 1
+min_sample_stride: 1
+
+# 深度归一化（与原配置一致）
+random_flip: true
+norm_type: "trunc_disparity"
+truncnorm_min: 0.02
+resolution: [480, 640]
+
+batch_size: 1
+
+# =============================================================================
+# 训练数据集：manifest.jsonl 驱动，不再遍历数据集目录
+#   - name          数据集名（日志用）
+#   - data_root     数据集根目录，manifest 中的 rgb/depth 路径相对于它
+#   - manifest      manifest 文件（相对 data_root 或绝对路径）
+#   - prob          采样概率（每步按 prob 加权随机挑一个数据集）
+#   - scene_filter  可选：只保留 scene_id 包含该子串的场景（如 GTA-SfM 只用 train 场景）
+#   - enlarge_factor 场景列表重复倍数（场景少时放大 epoch 内样本数）
+#   - d_max          深度截断上限（默认 50；深度量级大的数据集如 MatrixCity 需调大）
+#   - min/max_num_frame / batch_size / resolution 可选覆盖全局值
+# =============================================================================
+train_datasets:
+  - name: blendedmvs
+    data_root: ${sample_data_root}/BlendedMVS
+    manifest: manifest.jsonl
+    prob: 1
+    enlarge_factor: 100
+
+  - name: gta_sfm
+    data_root: ${sample_data_root}/GTA-SfM
+    manifest: manifest.jsonl
+    prob: 1
+    enlarge_factor: 100
+    scene_filter: train        # 只用 train_ 场景（test 场景只有 17 帧）
+    min_num_frame: 37          # GTA-SfM 训练场景只有 40 帧，最多取 37 帧(=4*9+1)
+    max_num_frame: 37
+
+  - name: matrixcity
+    data_root: ${sample_data_root}/MatrixCity
+    manifest: manifest.jsonl
+    prob: 1
+    enlarge_factor: 100
+    d_max: 6000      # MatrixCity 深度量级为数百~数千(米级城市场景)，远超默认截断 50
+
+  - name: tartanair
+    data_root: ${sample_data_root}/TartanAir
+    manifest: manifest.jsonl
+    prob: 1
+    enlarge_factor: 100
+
+# =============================================================================
+# 测试数据集（按需开启；全部为 false 时跳过验证）
+# =============================================================================
+test_batch_size: 1
+test_max_num_frame: 45
+test_min_num_frame: 45
+test_max_sample_stride: 1
+test_min_sample_stride: 1
+
+test_datasets:
+  kitti:
+    enable: false
+    data_root: ${kitti_vid_test_data_root}
+  scannet:
+    enable: false
+    data_root: ${scannet_vid_test_data_root}
+    split_ls: "configs/scannetv1_test.txt"
+  nyuv2:
+    enable: false
+    data_root: ${nyuv2_test_data_root}
+
+# Unique setting
+scheduler_training_weight_type: "equal" # late, equal, default
+training_schedule_mode: "default" # cosine, linear, default
+training_scheduler_timesteps: 1

@@ -1,0 +1,78 @@
+# =============================================================================
+# 过拟合对比 arm A — GAE-64 latent（几何原生）
+# 与 wanvae_ovf_bmvs_lora.yaml（arm B，Wan-VAE latent）成对：
+#   * 同 bmvs 前 8 场景（num_train_samples=8, samples_per_scene=4）、seed 42
+#   * 同 LoRA r128 / lr 1e-4 / accum 4 / bs 1 / bf16
+#   * 同冻结 eval（eval_view_seed=1234, 8 样本, 4 步 ODE）
+#   * max_steps=800, validate_step=200
+# 差异即实验变量：生成状态 = GAE-64 latent（深度是 DPT 解码产物）vs Wan-VAE
+# latent（深度是第二速度头）。分辨率随各自 latent 网格：378x504 (DA3) vs 384x672。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_bmvs_lora"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "bmvs"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: true
+rgb_flow_shift: 5.0
+vae_encoding_mode: "independent"
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 4
+batch_size: 1
+num_epochs: 1000000
+max_steps: 800
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution (multiple of 14 for the DA3 patch grid) ----------------------
+resolution: [378, 504]
+
+# --- data: BlendedMVS overfit subset ----------------------------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/data/blendedmvs/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/data/blendedmvs/manifest_all.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 4
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 4
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 3

@@ -1,0 +1,86 @@
+# =============================================================================
+# 过拟合对比 arm — GAE-64 latent + RGB aux loss
+# 基于 gae_ovf_bmvs_lora.yaml（arm A，纯 latent MSE），唯一差异是解码端辅助损失：
+#   目标视角 x_pred -> 冻结 GAE RGBHead -> L1(GT 像素)。
+# 动机：纯 latent MSE 下颜色通道无监督，target latent 塌缩成灰色条件均值
+#   （arm A：PSNR 15.8->17.3 升，LPIPS 0.645->0.791 崩，可视化灰 mush）。
+# 其余协议与 arm A 完全一致：前 8 场景 / LoRA r128 / lr 1e-4 / accum 4 / bs 1 /
+#   bf16 / seed 42 / 冻结 eval（8 样本 4 步 ODE）/ max_steps 800 / validate 200。
+#
+# sigma 门控说明：auto flow shift ~11.9 的 logit-normal 把 sigma 压在高段
+#   （sigma_mean~0.85），t_max=0.9 时约 40% 的 step 会触发 aux loss；
+#   低 sigma 样本太少，沿用 GAE 默认 0.4 几乎不触发。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_bmvs_lora_rgb_aux"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "bmvs"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: true
+rgb_flow_shift: 5.0
+vae_encoding_mode: "independent"
+
+# --- RGB aux loss (vs arm A 的唯一实验变量) -----------------------------------
+gae_rgb_loss_weight: 1.0        # 0 = 关闭（即 arm A）
+gae_rgb_t_max: 0.9              # sigma 低于此值才解码监督（高噪声 x_pred 不可信）
+gae_rgb_max_views: 1            # 每样本每步最多解码几个 target view（控 RGBHead 开销）
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 4
+batch_size: 1
+num_epochs: 1000000
+max_steps: 800
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution (multiple of 14 for the DA3 patch grid) ----------------------
+resolution: [378, 504]
+
+# --- data: BlendedMVS overfit subset ----------------------------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/data/blendedmvs/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/data/blendedmvs/manifest_all.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 4
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 4
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 3
