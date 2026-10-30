@@ -1,0 +1,92 @@
+# =============================================================================
+# GAE-64 latent + RGB aux loss — 降 shift 复训 arm（对比 gae_re10k_lora_rgb_aux）
+#
+# 动机：旧 arm 的 gae_auto_flow_shift 把 V=9 乘进 shift（13.5 = 4.5*sqrt(9)），
+#   logit-normal 下训练 sigma 压在高段（sigma_mean=0.903，P(sigma<0.6)=1.4%），
+#   模型学成"从近纯噪声回归条件均值"——PSNR 虚高但生成图持续发糊；
+#   eval 同 shift + 仅 4 步 ODE 时低噪声细化只分到 1 步（0.818 -> 0 一把 Euler）。
+#
+# 本 arm 唯一实验变量 = sigma 体系（GAE 官方单视角 shift）：
+#   * gae_auto_flow_shift=false, rgb_flow_shift=4.5 = sqrt(27*48*64/4096)：
+#     sigma_mean 0.90 -> 0.78，P(sigma<0.6) 1.4% -> 13.6%（Monte-Carlo 2e5 验证）
+#   * gae_rgb_t_max 0.9 -> 0.6：sigma 分布下移后重新标定（触发率 ~14%），
+#     aux 监督集中在低 sigma 段（x_pred 最可信处），解码开销低于旧 arm
+#   * eval_num_inference_steps 4 -> 25：低噪声细化步数从 1 -> ~10
+#   * eval_flow_shift 保持 null（= 训练 shift 4.5，监控模型自身工作点）；
+#     跨 arm 公平对比用 eval_script pinned sampler（0.5 / 25 步）单独评
+# 其余协议与旧 arm 完全一致（LoRA r128 / lr 1e-4 / bf16 / seed 42 / 全量 re10k）。
+# 从 step 0 全新训练（训练分布变了，不续训 shift-13.5 的 ckpt）。
+# 本地 3 卡 DDP：bs 16 x 3 = 有效 batch 48。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/gae_re10k_rgb_aux_shift45"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null                 # 默认解析到 <cache>/re10k_train/latent_stats.pt
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false           # 关闭 auto（旧 arm 在此把 V 乘进了 shift）
+rgb_flow_shift: 4.5                  # GAE 官方单视角 shift = sqrt(27*48*64/4096)
+vae_encoding_mode: "independent"
+
+# --- RGB aux loss -------------------------------------------------------------
+gae_rgb_loss_weight: 1.0        # 0 = 关闭
+gae_rgb_t_max: 0.6              # sigma 分布下移后重标定：触发率 ~14%（旧 0.9 仅适配高段分布）
+gae_rgb_max_views: 1            # 每样本每步最多解码几个 target view
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1
+batch_size: 16
+num_epochs: 1000000
+max_steps: 100000
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 1000
+resume: false                       # 全新训练，不续训旧 run
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution (multiple of 14; 对齐 re10k 缓存 27x48 网格) ------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K ------------------------------------------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 10
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25     # 旧 arm 用 4：shift13.5 下低 sigma 只有 1 步
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 8
