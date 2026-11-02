@@ -63,11 +63,14 @@ class WanTrainingModule(DiffusionTrainingModule):
         )
 
         # DiT related
+        # denoise_step only drives the legacy regression scheduler printout; the
+        # NVS modules sample sigma themselves and never touch these timesteps.
+        _denoise_step = getattr(args, "denoise_step", 0.5)
         self.pipe.scheduler.set_timesteps(
             training=True,
-            denoise_step=args.denoise_step,
+            denoise_step=_denoise_step,
         )
-        accelerator.print(f"Denoise step: {args.denoise_step}")
+        accelerator.print(f"Denoise step: {_denoise_step}")
         accelerator.print("Timesteps:", self.pipe.scheduler.timesteps)
         accelerator.print(
             f"Training weights: {self.pipe.scheduler.linear_timesteps_weights}"

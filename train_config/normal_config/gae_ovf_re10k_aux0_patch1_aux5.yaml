@@ -1,0 +1,110 @@
+# =============================================================================
+# 实验四（B1 判决）— patch1：1x1x1 patchify，每 token 恰好 1 个 latent 像素
+#
+# 假设（patchify hypothesis）：aux0/aux_fix 的 grad_e 卡 0.0013 平台（GT latent
+# 上限 0.00217）源于 Wan (1,2,2) patchify —— 27x48 latent 每 token 揉进 2x2 = 4
+# 个 latent 像素（每 token 覆盖 28x28 像素，Wan 预训练只有 16x16），冻结的
+# trunk 无从解块内纠缠，head 只能凭一个向量合成 2x2 块 -> 输出低通 -> 糊。
+#
+# 本 arm：patch_embedding -> Conv3d(64, dim, (1,1,1))，head/patch_size 同步，
+# 27x48 奇网格直接吃（不再 pad），token 数 336 -> 1296/view（attention FLOPs
+# ~15x）。与官方 GAE flow（configs/flow_gae128.yaml, patch_size=1）同构。
+#
+# 判据（同 8 场景、同 eval 25 步 shift 4.5）：
+#   * 目标视角 grad_e 是否突破 0.0013、向 0.00217 靠拢 -> patchify 是主因
+#   * LPIPS/可视化锐度同步改善
+#   * 若仍卡 -> 容量假设升级（train_all）或 trunk 特征错配假设
+#
+# 对照 arm B2 = gae_ovf_re10k_aux0_upsample2.yaml（nearest 2x 上采样后过原
+# (1,2,2)，数学上与 patch1 等价，token 数相同 11664/样本，互为校验）。
+# 除 gae_patch_mode/output_path 外，本文件与 gae_ovf_re10k_rgb_aux0.yaml
+# 逐位一致（rgb_loss_weight=0、v_loss_t_eps=1.0、shift 4.5、LoRA r128、
+# fresh_lr_mult 5x、bs4、8 场景、8050 步、seed 42）。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_re10k_aux0_patch1_aux5"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5                  # 与 aux_fix/aux0 arm 一致，train/eval 自洽
+vae_encoding_mode: "independent"
+
+# --- tokenization（本实验唯一主变量）------------------------------------------
+gae_patch_mode: "patch1"             # native -> patch1：1x1x1 patchify
+
+# --- sigma 采样分布（与 aux0 一致）--------------------------------------------
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: -1.5
+rgb_flow_logit_std: 1.0
+
+# --- RGB aux loss（保持关闭，隔离变量）----------------------------------------
+gae_rgb_loss_weight: 5.0
+gae_rgb_t_max: 0.6
+gae_rgb_max_views: 1
+
+# --- 主损失加权（与 aux0 逐位一致：均匀 v-MSE）---------------------------------
+v_loss_t_eps: 1.0
+
+# --- 新层学习率（与 aux0 一致）-------------------------------------------------
+fresh_layer_lr_mult: 5.0
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 2      # 与 aux0 bs4 的差异仅因共享卡显存：bs2x2 有效 batch 仍 8
+batch_size: 2
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution --------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K overfit subset（与 aux0 完全相同的 8 场景）------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

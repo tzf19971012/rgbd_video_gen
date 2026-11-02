@@ -1,0 +1,104 @@
+# =============================================================================
+# GAE-64 latent — 对齐 GAE 官方 flow 配方 arm（在 shift45 arm 基础上改两处）
+#
+# 相对 gae_re10k_lora_rgb_aux_shift45.yaml 的全部差异（其余协议逐项一致）：
+#
+# 1) velocity-MSE 加权 w(sigma) = 1/max(sigma, 0.05)^2  [v_loss_t_eps=0.05]
+#    GAE 官方 shipped 配方用 prediction='x' + v=(x_t-x_pred)/max(t,0.05) 再做
+#    MSE（src/stage2/transport/flow.py convert_x_to_v），等价于对 velocity 误差
+#    乘 1/t^2 —— 低噪声段（细节成形区）相对权重最高 400x。本 repo 此前是
+#    velocity 均匀权重（= x 空间 t^2 权重），低 sigma 被样本分布+权重双重压制，
+#    模型塌缩到条件均值 → 生成持续发糊。此改动让两边损失函数严格一致。
+#
+# 2) CFG 条件 dropout + 推理 CFG  [camera_drop_prob=0.2, ref_drop_prob=0.2,
+#    eval_cfg_scale=2.0]，对齐 GAE 官方 camera_drop 0.2 / ref_drop 0.2 /
+#    guidance cfg 2.0。训练期每个样本独立 Bernoulli 丢弃（camera/role 条件置零、
+#    source 证据槽位换纯噪声），推理每步跑一次无条件分支外推。
+#
+# shift 保持 4.5（GAE 官方单视角公式 sqrt(27*48*64/4096)，与 shift45 arm 相同），
+# rgb_aux 保持 1.0@t<=0.6，LoRA r128 / lr 1e-4 / bf16 / seed 42 / 全量 re10k。
+# 从 step 0 全新训练。
+#
+# 本机 4 卡 (2,3,5,6) DDP：bs 12 x 4 = 有效 batch 48，与 shift45 arm
+# （bs 16 x 3 = 48）严格一致。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/gae_re10k_wtloss_cfg"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5                  # 与 shift45 arm 一致（单视角官方公式）
+vae_encoding_mode: "independent"
+
+# --- 改动 1: velocity-MSE w(t)=1/max(t,eps)^2 --------------------------------
+v_loss_t_eps: 0.05                   # GAE 官方 t_eps
+
+# --- 改动 2: CFG 条件 dropout + 推理 CFG --------------------------------------
+camera_drop_prob: 0.2                # 丢弃 Plucker/role 条件（全部槽位置零）
+ref_drop_prob: 0.2                   # 丢弃 source 证据（槽位换纯噪声）
+eval_cfg_scale: 2.0                  # 推理 CFG（含训练内 eval 与离线 eval）
+
+# --- RGB aux loss（与 shift45 arm 一致）---------------------------------------
+gae_rgb_loss_weight: 1.0
+gae_rgb_t_max: 0.6
+gae_rgb_max_views: 1
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1
+batch_size: 12                        # 12 x 4卡 = 48，与 shift45 的 16 x 3 卡等值
+num_epochs: 1000000
+max_steps: 100000
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 1000
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution ---------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K ------------------------------------------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 10
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 8

@@ -39,12 +39,18 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         gae_dataset_name="bmvs",
         gae_stats_path=None,
         gae_latent_channels=64,
+        gae_prediction="v",
         gae_rope_frame_axis="view",
         gae_auto_flow_shift=True,
         gae_codec_device=None,
         gae_rgb_loss_weight=0.0,
         gae_rgb_t_max=0.4,
         gae_rgb_max_views=1,
+        gae_patch_mode="native",
+        v_loss_t_eps=0.05,
+        camera_drop_prob=0.0,
+        ref_drop_prob=0.0,
+        eval_cfg_scale=1.0,
         **kwargs,
     ):
         # Force the configuration this module is written for before the parent
@@ -59,11 +65,47 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         kwargs["per_frame_timestep"] = False
         super().__init__(*args, **kwargs)
 
+        # Parameterization of the flow head.  GAE stage2 ships 'x' (the head
+        # predicts the clean latent; flow.py:329 converts it to a velocity via
+        # convert_x_to_v -- clamp t at t_eps=0.05 -- and trains with UNIFORM
+        # v-space MSE, so its weighting profile is identical to a plain v-head
+        # under uniform v-MSE).  The arms therefore differ in what the network
+        # regresses (x_pred vs v), not in the loss weighting:
+        #   'v' + v_loss_t_eps=1.0 -> w=1  : profile-identical to GAE shipped
+        #   'v' + v_loss_t_eps=0.05 -> w=1/sigma^2 : extra low-sigma emphasis
+        #   'x'                            : GAE-faithful parameterization
+        if gae_prediction not in ("v", "x"):
+            raise ValueError(
+                f"gae_prediction must be 'v' or 'x', got {gae_prediction!r}"
+            )
+        self.gae_prediction = gae_prediction
+
         if gae_rope_frame_axis not in ("view", "constant"):
             raise ValueError(
                 f"gae_rope_frame_axis must be 'view' or 'constant', "
                 f"got {gae_rope_frame_axis!r}"
             )
+        # Tokenization resolution experiment (patchify hypothesis, plan A/B):
+        #   native    - Wan (1,2,2) patchify on the cached 27x48 grid
+        #               (336 tokens/view; each token blends 2x2 latent pixels);
+        #   patch1    - fresh (1,1,1) patch_embedding + Head + dit.patch_size,
+        #               1296 tokens/view, one token per latent pixel, no padding;
+        #   upsample2 - nearest-2x the latent to 54x96 BEFORE the (1,2,2)
+        #               patchify.  Mathematically identical to patch1: each
+        #               2x2 patch holds 4 identical values, so the conv output
+        #               is the (1,1,1) result times a constant.  The codec
+        #               never sees the upsampled grid -- sample_latents /
+        #               _rgb_aux_loss avg_pool back before decode, and
+        #               nearest-up -> avg_pool is an EXACT identity (verified:
+        #               max|err|=0 latent, PSNR=inf decoded).
+        if gae_patch_mode not in ("native", "patch1", "upsample2"):
+            raise ValueError(
+                f"gae_patch_mode must be 'native' | 'patch1' | 'upsample2', "
+                f"got {gae_patch_mode!r}"
+            )
+        self.gae_patch_mode = gae_patch_mode
+        self._gae_upsample = 2 if gae_patch_mode == "upsample2" else 1
+        self._gae_codec_grid = None  # (h, w) of the cached latents (pre-upsample)
         self.gae_cache_root = gae_cache_root
         self.gae_dataset_name = gae_dataset_name
         self.gae_latent_channels = int(gae_latent_channels)
@@ -90,6 +132,30 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
                 "(x_pred -> frozen RGBHead -> L1 on target views)"
             )
 
+        # Velocity-MSE weighting w(t) = 1 / max(t, v_loss_t_eps)^2, the exact
+        # equivalent of the GAE/RAEv2 shipped recipe (prediction='x' with
+        # v = (x_t - x_pred) / max(t, eps) before the MSE, see
+        # GAE src/stage2/transport/flow.py convert_x_to_v): uniform weight on
+        # the velocity error equals a 1/t^2 weight on the x-space error, which
+        # is what keeps the low-noise (detail-forming) regime trained.  Without
+        # it the effective x-space weight is t^2 and the low-sigma region is
+        # doubly suppressed (few samples after shift warp AND ~zero loss
+        # weight) -- the model collapses to the conditional mean and every
+        # sample comes out blurry.
+        self.v_loss_t_eps = float(v_loss_t_eps)
+
+        # CFG condition dropout (GAE flow_gae128 protocol: camera_drop 0.2,
+        # ref_drop_prob 0.2).  Zeroing both probabilities restores the old
+        # always-conditioned behaviour.
+        self.camera_drop_prob = float(camera_drop_prob)
+        self.ref_drop_prob = float(ref_drop_prob)
+        self.eval_cfg_scale = float(eval_cfg_scale)
+        if self.camera_drop_prob > 0 or self.ref_drop_prob > 0:
+            self.accelerator.print(
+                f"[gae] CFG condition dropout ENABLED: camera_drop={self.camera_drop_prob} "
+                f"ref_drop={self.ref_drop_prob} eval_cfg_scale={self.eval_cfg_scale}"
+            )
+
         # Per-channel standardization stats of the cache (GAE Eq. 15). Plain
         # attributes, moved to the pipe device on first use.
         if gae_stats_path is None:
@@ -104,11 +170,35 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         # space has 64 channels in AND out.
         dit = self.pipe.dit
         old_conv = dit.patch_embedding
+        old_head = dit.head
+        # Snapshot the pretrained Wan2.1 projections before replacing them.
+        # Plain-dict tensors, so they never register as submodules (no DDP /
+        # checkpoint leakage).  The geo-color subclass seeds its COLOR stream
+        # (patch-embedding slice [64:80] + rgb_head) from this snapshot; the
+        # geometry stream stays fresh.
+        self._pretrained_wan_projections = {
+            "patch_embedding": {
+                k: v.detach().clone() for k, v in old_conv.state_dict().items()
+            },
+            "head": {
+                k: v.detach().clone() for k, v in old_head.state_dict().items()
+            },
+        }
+        # patch1 arm: 1x1x1 patchify, one token per latent pixel (1296/view vs
+        # 336 at (1,2,2)).  The Head's Linear and WanModel.unpatchify both read
+        # patch_size, so the frozen dit.patch_size must move with it (the
+        # training path unpatchifies through model_fn_wan_video).
+        if self.gae_patch_mode == "patch1":
+            conv_kernel = conv_stride = (1, 1, 1)
+            head_patch = (1, 1, 1)
+        else:
+            conv_kernel, conv_stride = old_conv.kernel_size, old_conv.stride
+            head_patch = old_head.patch_size
         dit.patch_embedding = torch.nn.Conv3d(
             self.gae_latent_channels,
             old_conv.out_channels,
-            kernel_size=old_conv.kernel_size,
-            stride=old_conv.stride,
+            kernel_size=conv_kernel,
+            stride=conv_stride,
             padding=old_conv.padding,
             bias=old_conv.bias is not None,
         ).to(device=old_conv.weight.device, dtype=old_conv.weight.dtype)
@@ -118,13 +208,16 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
             torch.nn.init.zeros_(dit.patch_embedding.bias)
 
         dit.head = Head(
-            dit.dim, self.gae_latent_channels, dit.head.patch_size, eps=1e-6
+            dit.dim, self.gae_latent_channels, head_patch, eps=1e-6
         ).to(device=old_conv.weight.device, dtype=old_conv.weight.dtype)
+        dit.patch_size = head_patch
         dit.rgb_head = None
         self.accelerator.print(
-            f"[gae] patch_embedding -> Conv3d({self.gae_latent_channels}, "
-            f"{old_conv.out_channels}, ...) (fresh), head -> Head(out_dim="
-            f"{self.gae_latent_channels}) (fresh), rgb_head removed."
+            f"[gae] patch_mode={self.gae_patch_mode}: patch_embedding -> "
+            f"Conv3d({self.gae_latent_channels}, {old_conv.out_channels}, "
+            f"kernel={conv_kernel}) (fresh), head -> Head(out_dim="
+            f"{self.gae_latent_channels}, patch={head_patch}) (fresh), "
+            f"dit.patch_size={dit.patch_size}, rgb_head removed."
         )
 
         # Frame-axis RoPE ids for the V per-view latent frames. "view" hands
@@ -232,12 +325,28 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
             std.reshape(1, -1, 1, 1, 1) + 1e-6
         )
         z = z.to(dtype)
-        # The DiT patchifies with (1, 2, 2): an ODD cached grid (e.g. 378/14=27)
-        # loses its last row in unpatchify and pred/gt shapes diverge.  Pad to
-        # even, remember the true grid, and crop model outputs back to it.
+        # Tokenization arms (see __init__):
+        #   upsample2: nearest-2x the standardized latent to the DiT working
+        #     grid 54x96 BEFORE patchify.  Standardize-then-upsample is safe
+        #     (per-channel affine commutes with nearest duplication) and the
+        #     resulting grid is always even, so the odd-grid pad below never
+        #     fires.  _gae_codec_grid remembers the TRUE cached grid:
+        #     sample_latents / _rgb_aux_loss avg_pool back to it before any
+        #     codec call.
+        #   patch1: (1,1,1) patchify accepts the odd cached grid as-is, so the
+        #     pad is skipped entirely.
+        #   native: original behaviour -- pad odd grids to even for (1,2,2).
         h, w = z.shape[-2:]
+        self._gae_codec_grid = (h, w)
+        if self._gae_upsample > 1:
+            B, C, V = z.shape[:3]
+            z = z.permute(0, 2, 1, 3, 4).reshape(B * V, C, h, w)
+            z = F.interpolate(z, scale_factor=self._gae_upsample, mode="nearest")
+            z = z.reshape(B, V, C, h * self._gae_upsample, w * self._gae_upsample)
+            z = z.permute(0, 2, 1, 3, 4).contiguous()
+            h, w = h * self._gae_upsample, w * self._gae_upsample
         self._gae_true_grid = (h, w)
-        if h % 2 or w % 2:
+        if self.gae_patch_mode != "patch1" and (h % 2 or w % 2):
             z = F.pad(z, (0, w % 2, 0, h % 2))
         return z
 
@@ -250,9 +359,11 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         width = data["images"].shape[-1]
 
         z = self._load_cached_latents(data)          # [B, C, V, h, w], standardized, EVEN grid
-        # The ray field must sit on the TRUE cached grid (height//14); z may be
-        # padded by one row/col for the DiT's (1,2,2) patchify.
+        # The ray field must sit on the TRUE working grid (height//14 at native,
+        # 2x that in the upsample2 arm -- i.e. the grid z actually carries).
         latent_height, latent_width = height // 14, width // 14
+        latent_height *= self._gae_upsample
+        latent_width *= self._gae_upsample
 
         context = self._null_text_embed.to(
             dtype=self.pipe.torch_dtype, device=self.pipe.device
@@ -347,47 +458,84 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
 
         noise = torch.randn_like(rgb_gt)
         x_t = (1.0 - sigma) * rgb_gt + sigma * noise
-        velocity_target = noise - rgb_gt
 
         timestep = (
             sigma.reshape(batch_size) * self.pipe.scheduler.num_train_timesteps
         ).to(dtype=self.pipe.torch_dtype)
         timestep = self._expand_timestep(timestep)   # [B, V], source frames at 0
 
+        # CFG condition dropout (per batch element, Bernoulli).  Sampled OUTSIDE
+        # the checkpointed DiT call so the masks/noise are fixed inputs.
+        cam_drop = ref_drop = None
+        if self.training and (self.camera_drop_prob > 0 or self.ref_drop_prob > 0):
+            dev = rgb_gt.device
+            if self.camera_drop_prob > 0:
+                cam_drop = torch.rand(batch_size, device=dev) < self.camera_drop_prob
+            if self.ref_drop_prob > 0:
+                ref_drop = torch.rand(batch_size, device=dev) < self.ref_drop_prob
+
         pred = self._forward_model(
-            inputs, self._build_flow_input(inputs, x_t), timestep
+            inputs,
+            self._build_flow_input(
+                inputs, x_t, cam_drop=cam_drop, ref_drop=ref_drop),
+            timestep
         )
         # The padded patchify row/col carry no target: crop pred AND target
         # back to the true cached grid so the loss compares like with like.
         h0, w0 = self._gae_true_grid
         pred = pred[:, :, :, :h0, :w0]
-        velocity_target = velocity_target[:, :, :, :h0, :w0]
+
+        if self.gae_prediction == "x":
+            # GAE-original parameterization, faithful to flow.py:329-336: the
+            # head outputs x_pred, which is converted to a velocity via
+            # convert_x_to_v (paper Eq. 11, clamp t at v_loss_t_eps=0.05) and
+            # regressed to v_target with UNIFORM v-space MSE.
+            # NOTE on what this arm actually tests: in x-space the convert
+            # error is x_err/t, so the weighting profile is IDENTICAL to the
+            # plain v-head under uniform v-MSE (patch1's v_loss_t_eps=1.0).
+            # The arm varies the PARAMETERIZATION (what the network regresses),
+            # not the loss weighting.  x_pred stays available for the aux loss.
+            flow_target = (noise - rgb_gt)[:, :, :, :h0, :w0]
+            x_pred = pred
+            t_safe = sigma.clamp_min(self.v_loss_t_eps).reshape(
+                batch_size, 1, 1, 1, 1).to(pred.dtype)
+            pred = (x_t[:, :, :, :h0, :w0] - pred) / t_safe
+            v_weight = torch.ones(
+                batch_size, device=pred.device, dtype=pred.dtype)
+        else:
+            flow_target = (noise - rgb_gt)[:, :, :, :h0, :w0]
+            # Per-element velocity-MSE weight 1/max(sigma, eps)^2: in x-space
+            # this profile is x_err^2/sigma^4, i.e. MORE low-sigma emphasis
+            # than GAE's shipped convert+uniform-v recipe (x_err^2/sigma^2).
+            v_weight = sigma.clamp_min(self.v_loss_t_eps).square().reshape(batch_size)
+            v_weight = (1.0 / v_weight).to(pred.dtype)
+            x_pred = x_t[:, :, :, :h0, :w0] - sigma.reshape(
+                batch_size, 1, 1, 1, 1).to(pred.dtype) * pred
+
         rgb_aux = None
         if self.gae_rgb_loss_weight > 0 and self.training:
-            rgb_aux = self._rgb_aux_loss(inputs, x_t, pred, sigma)
+            rgb_aux = self._rgb_aux_loss(inputs, x_pred, sigma)
         return {
             "pred": pred,
-            "rgb_gt": velocity_target,
+            "rgb_gt": flow_target,
             "loss_masks": inputs["loss_masks"],
-            "weight": 1.0,
+            "weight": v_weight,
             "sigma": sigma.reshape(batch_size),
             "rgb_aux": rgb_aux,
         }
 
-    def _rgb_aux_loss(self, inputs, x_t, v_pred, sigma):
+    def _rgb_aux_loss(self, inputs, x_pred, sigma):
         """L1 decode loss on the target-view x-prediction (GAE compute_rgb_aux_loss).
 
-        velocity -> x conversion: x_t = z + sigma*(noise - z), so
-        x_pred = x_t - sigma * v_pred. Only batches with sigma < gae_rgb_t_max
-        contribute (high-noise x_pred is garbage; its decode gradient is noise),
-        and at most gae_rgb_max_views target views per batch element are decoded
-        to cap the RGBHead cost. Gradient flows: L1 -> RGBHead (frozen) ->
-        x_pred -> DiT. Returns None on gated-off steps so the trainer can skip
-        the term entirely.
+        ``x_pred`` arrives already in x-parameterization: 'x' mode passes the
+        head output through; 'v' mode converts first (x_t = z + sigma*(noise-z),
+        so x_pred = x_t - sigma * v_pred). Only batches with sigma <
+        gae_rgb_t_max contribute (high-noise x_pred is garbage; its decode
+        gradient is noise), and at most gae_rgb_max_views target views per
+        batch element are decoded to cap the RGBHead cost. Gradient flows:
+        L1 -> RGBHead (frozen) -> x_pred -> DiT. Returns None on gated-off
+        steps so the trainer can skip the term entirely.
         """
-        h0, w0 = self._gae_true_grid
-        x_t = x_t[:, :, :, :h0, :w0]
-        x_pred = x_t - sigma * v_pred.to(x_t.dtype)
         s = self.num_source_views
         x_pred = x_pred[:, :, s:]                    # target views only
         low = sigma.reshape(-1) < self.gae_rgb_t_max
@@ -407,6 +555,10 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         z_raw = (
             xp.permute(0, 2, 1, 3, 4).reshape(B * K, C, *xp.shape[-2:]) * std + mean
         ).float()                                    # destandardize, [Bk*K, C, h, w]
+        # upsample2 arm: collapse the 2x working grid back to the codec grid
+        # (exact identity on constant 2x2 blocks) before the frozen RGBHead.
+        if self._gae_upsample > 1:
+            z_raw = F.avg_pool2d(z_raw, self._gae_upsample)
         rgb_pred = self._get_gae().decode_rgb_with_grad(z_raw, num_views=1)
         rgb_pred = rgb_pred.reshape(B, K, *rgb_pred.shape[1:]).float()
         tgt = inputs["images"][low][:, s:].to(torch.float32)   # [Bk, V_tgt, 3, H, W]
@@ -424,14 +576,31 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
     # -- sampling -------------------------------------------------------------
 
     @torch.no_grad()
-    def sample_latents(self, inputs, num_steps=None, generator=None):
-        """Euler-integrate the target-view slots; source slots stay clean."""
+    def sample_latents(self, inputs, num_steps=None, generator=None, cfg_scale=None):
+        """Euler-integrate the target-view slots; source slots stay clean.
+
+        cfg_scale > 1 enables classifier-free guidance: each step runs an
+        additional unconditional pass (bare x_t, zero camera conditioning,
+        pure-noise evidence slots) and extrapolates
+        v = v_uncond + cfg * (v_cond - v_uncond).
+
+        In 'x' parameterization the head output is the clean-latent prediction;
+        it is converted to a velocity via GAE convert_x_to_v (paper Eq. 11):
+        v = (x_t - x_pred) / max(sigma, t_eps).
+        """
         num_steps = (
             self.eval_num_inference_steps if num_steps is None else max(1, int(num_steps))
         )
+        cfg = self.eval_cfg_scale if cfg_scale is None else float(cfg_scale)
         z = inputs["gae_latents"]                    # [B, C, V, h, w]
         s = self.num_source_views
         sigmas = self.inference_sigmas(num_steps, device=z.device).to(z.dtype)
+
+        def _to_velocity(out, x_cur, sigma_val):
+            if self.gae_prediction != "x":
+                return out
+            sig = max(float(sigma_val), self.v_loss_t_eps)
+            return (x_cur - out) / sig
 
         x = torch.randn(z.shape, device=z.device, dtype=z.dtype, generator=generator)
         x[:, :, :s] = z[:, :, :s]
@@ -440,14 +609,49 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
                 sigmas[i] * self.pipe.scheduler.num_train_timesteps
             ).reshape(1).to(dtype=self.pipe.torch_dtype, device=z.device)
             timestep = self._expand_timestep(timestep)
-            velocity = self._forward_model(
-                inputs, self._build_flow_input(inputs, x), timestep
+            velocity = _to_velocity(
+                self._forward_model(
+                    inputs, self._build_flow_input(inputs, x), timestep
+                )[:, :, s:],
+                x[:, :, s:], float(sigmas[i]),
             )
+            if cfg > 1.0:
+                # Unconditional branch: strip the additive camera/role
+                # conditioning everywhere and replace the clean evidence slots
+                # with pure noise.  _build_flow_input takes source slots from
+                # rgb_latents, so handing it pure noise there yields a
+                # fully-unconditional input; only the target-slot velocity is
+                # consumed.
+                uncond_inputs = dict(inputs)
+                uncond_inputs["rgb_latents"] = torch.randn(
+                    z.shape, device=z.device, dtype=x.dtype)
+                uncond_inputs["view_condition"] = torch.zeros_like(
+                    inputs["view_condition"])
+                v_uncond = _to_velocity(
+                    self._forward_model(
+                        uncond_inputs,
+                        self._build_flow_input(uncond_inputs, x),
+                        timestep,
+                    )[:, :, s:],
+                    x[:, :, s:], float(sigmas[i]),
+                )
+                velocity = v_uncond + cfg * (velocity - v_uncond)
             dt = sigmas[i] - sigmas[i + 1]
-            x[:, :, s:] = x[:, :, s:] - dt * velocity[:, :, s:].to(x.dtype)
+            x[:, :, s:] = x[:, :, s:] - dt * velocity.to(x.dtype)
             x[:, :, :s] = z[:, :, :s]                # re-pin the evidence
         h0, w0 = self._gae_true_grid
-        return x[:, :, :, :h0, :w0]
+        x = x[:, :, :, :h0, :w0]
+        # Fold the upsampled working grid back onto the codec's grid BEFORE
+        # anything downstream (eval decode, rgb aux) sees a latent.  avg_pool
+        # of a nearest-upsampled tensor is an exact identity, so a model that
+        # emits constant 2x2 blocks loses nothing.
+        if self._gae_upsample > 1:
+            B, C, V = x.shape[:3]
+            x = x.permute(0, 2, 1, 3, 4).reshape(B * V, C, h0, w0)
+            x = F.avg_pool2d(x, self._gae_upsample)
+            ch, cw = self._gae_codec_grid
+            x = x.reshape(B, V, C, ch, cw).permute(0, 2, 1, 3, 4).contiguous()
+        return x
 
     # -- eval-side codec ------------------------------------------------------
 

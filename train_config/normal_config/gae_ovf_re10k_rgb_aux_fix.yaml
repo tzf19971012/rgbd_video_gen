@@ -1,0 +1,103 @@
+# =============================================================================
+# 实验二（overfit 判决）— 修复"糊"的三个怀疑点，其余协议与 w5 arm 完全一致
+#
+# 背景诊断（ovf_gae_re10k_rgb_aux_w5_20261101_031125 @8 训练样本）：
+#   * PSNR 卡 15.2 / LPIPS 0.52，融化伪影与全量 run 同款
+#   * teacher-forced v R^2: sigma=0.9 时 0.90，sigma<0.2 时 <0.3
+#   * 分通道：64 通道 nrm_err 0.55~0.92 均匀分布，corr 仅 ~0.7（联合结构整体错）
+#
+# 本 arm 修的三个怀疑（唯一变量，数据/批量/协议不动）：
+#   1. sigma 采样分布：logit_mean 0 -> -1.5。旧分布 P(sigma<0.5)~7%、P(sigma<0.3)~0.9%，
+#      eval ODE 末段（sigma 0.16~0.53）几乎没训过 -> 结构对、细节糊的直接原因。
+#      新分布：P(sigma<0.5)~38%、P(sigma<0.3)~12%、P(sigma<0.2)~4%。
+#   2. rgb_aux 覆盖率：t_max 0.6（触发率 ~14%）-> 0.95（~99%），权重 5->2
+#      （有效 decode 梯度 0.7 -> ~2，不再靠门槛 accidental 截断）。
+#   3. 新层学习率：patch_embedding/head 从零学 64ch latent 空间，
+#      fresh_layer_lr_mult=5（1e-4 -> 5e-4），LoRA 维持 1e-4。
+#
+# 判据（与 w5 arm 同 8 场景、同 eval 协议直接对比）：
+#   * w5 平台：PSNR ~15.2 / LPIPS ~0.52 / 融化伪影
+#   * 若 PSNR 显著突破 15~16 且伪影减轻 -> 分布/覆盖率/容量假设成立
+#   * 若仍卡 15 -> 剩余假设只剩容量不足（下一步 train_all）与目标函数本身
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_re10k_rgb_aux_fix"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5                  # 与 w5 arm 一致，train/eval 自洽
+vae_encoding_mode: "independent"
+
+# --- sigma 采样分布（本实验主变量 1）------------------------------------------
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: -1.5            # 0 -> -1.5：整体左移，低 sigma 覆盖 ~40x
+rgb_flow_logit_std: 1.0
+
+# --- RGB aux loss（本实验主变量 2）--------------------------------------------
+gae_rgb_loss_weight: 2.0        # 5.0 -> 2.0，但覆盖率 14% -> ~99%，有效梯度 ~3x
+gae_rgb_t_max: 0.95             # 0.6 -> 0.95：几乎所有步都有 decode 梯度
+gae_rgb_max_views: 1
+
+# --- 新层学习率（本实验主变量 3）----------------------------------------------
+fresh_layer_lr_mult: 5.0        # patch_embedding + head: 1e-4 -> 5e-4
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1
+batch_size: 4                   # 与 w5 arm 一致（2 卡 DDP × 4 = 有效 batch 8）
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution --------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K overfit subset（与 w5 arm 完全相同的 8 场景）----------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

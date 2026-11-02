@@ -134,6 +134,7 @@ def build_model(cfg, accelerator):
         gae_cache_root=cfg.get("gae_cache_root"),
         gae_dataset_name=cfg.get("gae_dataset_name", "bmvs"),
         gae_stats_path=cfg.get("gae_stats_path", None),
+        gae_prediction=cfg.get("gae_prediction", "v"),
         gae_rope_frame_axis=cfg.get("gae_rope_frame_axis", "view"),
         gae_auto_flow_shift=cfg.get("gae_auto_flow_shift", True),
         gae_codec_device=cfg.get("gae_codec_device", None),

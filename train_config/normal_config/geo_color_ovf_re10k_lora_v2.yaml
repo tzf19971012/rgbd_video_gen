@@ -1,0 +1,110 @@
+# =============================================================================
+# 实验四 — geo/color 双流 v2:套用 A 组消融的三个修复,与 aux0 逐位配对
+#
+# 相对 geo_color_ovf_re10k_lora.yaml 的改动(其余协议逐位一致):
+#   1. rgb_flow_logit_mean 0.0 -> -1.5(sigma 分布修复:老实验 sigma_mean~0.8,
+#      75% 训练量在 sigma>0.6,推理 25 步 Euler 的低 sigma 尾部 OOD -> 糊;
+#      aux0 已验证:同协议 600 步 LPIPS 0.631 vs w5 老分布 600 步 0.761)
+#   2. fresh_layer_lr_mult 5.0(新增;trainer 已补齐 plumbing,geo 流的
+#      patch_embedding/head + color 流的 rgb_head/第二 ViewConditionEncoder
+#      用 5e-4,LoRA 维持 1e-4)
+#   3. validate_step 400 -> 200(eval 加密对齐 aux0)
+#
+# 资源协议:当前仅 1 张卡可用,单卡 bs4 x grad_accum 2 = 有效 batch 8,
+# 与 aux0 的 2 卡 x bs4 对齐。v_loss_t_eps 不适用(geo-color 的
+# _forward_flow 恒返回 weight=1.0,本来就是均匀 v-MSE)。
+# color 流 aux loss 未实现(rgb_aux 硬编码 None),本实验先验证
+# sigma 修复对双流的增益,aux 增益对照读 aux0 vs w5 的差值。
+#
+# 判据(同 8 场景、同 eval 25 步 shift 4.5、同 seed):
+#   * 对比 aux0(GAE 单流同修复):geo-color 是否追平/超过
+#   * 对比 geo-color 老分布(5200 步 LPIPS 0.5946):sigma 修复的增益
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_geocolor_re10k_lora_v2"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+# NOTE: 老深度回归模板的 mode/denoise_step 键已删除——geo-color 路径走
+# _forward_flow 的 flow matching（sigma~logit_normal(-1.5,1)+shift4.5），
+# 从不读取它们；基类 WanTrainingModule 对 denoise_step 已有 getattr 默认值。
+
+# --- geo latent backend（同 v1）----------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5
+vae_encoding_mode: "independent"
+
+# --- sigma 采样分布（v2 主改动，与 aux0 一致）---------------------------------
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: -1.5
+rgb_flow_logit_std: 1.0
+
+# --- 解码端 aux loss：双流不适用（rgb_aux 硬编码 None）------------------------
+gae_rgb_loss_weight: 0.0
+gae_rgb_t_max: 0.6
+gae_rgb_max_views: 1
+
+# --- color latent backend（同 v1）--------------------------------------------
+wan_latent_cache_root: "/mnt/sfs_turbo/t00845730/wan_latent_cache"
+wan_latent_dataset_name: "re10k_ovf8_wan"
+wan_latent_stats_path: null
+color_loss_weight: 1.0
+
+# --- 新层学习率（v2 新增，与 aux0 一致）---------------------------------------
+fresh_layer_lr_mult: 5.0
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 2    # 单卡 x accum2 = 有效 batch 8（对齐 aux0 的 2 卡）
+batch_size: 4
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution ---------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K overfit subset（与 v1/aux0 相同的 8 场景）-------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

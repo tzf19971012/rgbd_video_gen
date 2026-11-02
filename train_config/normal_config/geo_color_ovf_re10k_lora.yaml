@@ -1,0 +1,100 @@
+# =============================================================================
+# 实验二（geo/color 双流验证）— 几何 latent 走 DA3(GAE-64)，颜色 latent 走 Wan VAE
+#
+# 想法（受 GAE 启发）：场景的几何属性交给 DA3 latent，颜色属性交给 Wan latent。
+# DiT 输入 = [x_t_geo(64ch) ; x_t_color(16ch)] 通道拼接（80ch patch_embedding），
+# 输出 = 两个速度头：dit.head -> v_geo(64)，dit.rgb_head -> v_color(16)。
+# 两个流共享一个 sigma（同一 timestep，source 帧钉在 0），各自独立加噪；
+# FM 损失 = 拼接速度的 masked MSE（两流均标准化到单位方差，权重天然平衡，
+# 可用 color_loss_weight 调节颜色项权重）。
+#
+# 关键网格决策：DiT 跑在 Wan latent 原生网格（378x672 -> 47x84，pad 到 48x84）。
+#   实测（16 帧 re10k，2026-11-01）：颜色 latent 若降到 GAE 的 27x48 网格，
+#   往返 decode ceiling 只有 ~25 dB；原生网格 ~42 dB；GAE-64 路线 ~38 dB。
+#   几何 latent 上采样进 DiT（27x48 -> 48x84），采样后再降回 27x48 过 GAE 解码深度。
+#
+# 数据协议与实验一（gae_ovf_re10k_lora_rgb_aux_w5）完全一致：
+#   re10k 前 8 场景 × 8 样本 = 64 样本，6s3t，LoRA r128，lr 1e-4，seed 42，
+#   shift 4.5，25 步 ODE eval —— 两个实验可逐指标配对比较。
+# 颜色 latent 来自离线缓存（utils/cache_wan_latents.py，re10k_ovf8_wan）；
+# eval 的 RGB 由冻结 Wan VAE 解码（深度仍由 GAE DPT 头解码）。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_geocolor_re10k_lora"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- geo latent backend（同实验一）--------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5
+vae_encoding_mode: "independent"
+
+# --- 解码端 aux loss：双流实验关闭（颜色流有直接 FM 监督）----------------------
+gae_rgb_loss_weight: 0.0
+gae_rgb_t_max: 0.6
+gae_rgb_max_views: 1
+
+# --- color latent backend（新增）----------------------------------------------
+wan_latent_cache_root: "/mnt/sfs_turbo/t00845730/wan_latent_cache"
+wan_latent_dataset_name: "re10k_ovf8_wan"
+wan_latent_stats_path: null          # 默认解析到 <cache>/re10k_ovf8_wan/latent_stats.pt
+color_loss_weight: 1.0               # 颜色 FM 项权重（sqrt 缩放实现，1.0 = 与几何项均权）
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1
+batch_size: 4                   # 4 卡 DDP × 4 = 有效 batch 16（与实验一一致）
+num_epochs: 1000000
+max_steps: 8050                 # 1000 首轮已跑（续训自 step-800）；末尾 50 步缓冲同实验一
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 400              # 200 -> 400：双流 eval 每次要过 VAE+GAE 双解码，省开销
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution (378x672: GAE 网格 27x48，Wan 网格 47x84->48x84) ---------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K overfit subset（与实验一相同切片）---------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

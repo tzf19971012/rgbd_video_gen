@@ -170,6 +170,8 @@ def main():
         f"rgb_aux={cfg.get('gae_rgb_loss_weight', 0.0)}"
         f"@t<={cfg.get('gae_rgb_t_max', 0.4)}"
         f",views={cfg.get('gae_rgb_max_views', 1)}  "
+        f"patch_mode={cfg.get('gae_patch_mode', 'native')}  "
+        f"prediction={cfg.get('gae_prediction', 'v')}  "
         f"lora={cfg.get('lora_base_model')} r={cfg.get('lora_rank')}  "
         f"train_all={cfg.get('train_all', False)}  seed={cfg.seed}"
     )
@@ -210,12 +212,18 @@ def main():
         gae_cache_root=cfg.get("gae_cache_root"),
         gae_dataset_name=cfg.get("gae_dataset_name", "bmvs"),
         gae_stats_path=cfg.get("gae_stats_path", None),
+        gae_prediction=cfg.get("gae_prediction", "v"),
         gae_rope_frame_axis=cfg.get("gae_rope_frame_axis", "view"),
         gae_auto_flow_shift=cfg.get("gae_auto_flow_shift", True),
         gae_codec_device=cfg.get("gae_codec_device", None),
         gae_rgb_loss_weight=cfg.get("gae_rgb_loss_weight", 0.0),
         gae_rgb_t_max=cfg.get("gae_rgb_t_max", 0.4),
         gae_rgb_max_views=cfg.get("gae_rgb_max_views", 1),
+        gae_patch_mode=cfg.get("gae_patch_mode", "native"),
+        v_loss_t_eps=cfg.get("v_loss_t_eps", 0.05),
+        camera_drop_prob=cfg.get("camera_drop_prob", 0.0),
+        ref_drop_prob=cfg.get("ref_drop_prob", 0.0),
+        eval_cfg_scale=cfg.get("eval_cfg_scale", 1.0),
     )
     model.set_training_param()
 
@@ -265,11 +273,30 @@ def main():
         )
         accelerator.print(f"Frozen eval set: {len(eval_indices)} samples")
 
+    # Fresh from-scratch layers (GAE patch_embedding / head) get their own LR
+    # multiplier: they must learn a foreign 64-ch latent space from zero while
+    # the LoRA adapters only retune a pretrained trunk, so a single shared LR
+    # starves the new layers.  fresh_layer_lr_mult=1.0 keeps the old behavior.
+    fresh_lr_mult = float(cfg.get("fresh_layer_lr_mult", 1.0))
+    fresh_params = [p for p in model.pipe.dit.patch_embedding.parameters()
+                    if p.requires_grad]
+    fresh_params += [p for p in model.pipe.dit.head.parameters()
+                     if p.requires_grad]
+    fresh_ids = {id(p) for p in fresh_params}
+    other_params = [p for p in model.trainable_modules()
+                    if id(p) not in fresh_ids]
+    param_groups = [{"params": other_params, "lr": cfg.learning_rate}]
+    if fresh_params and fresh_lr_mult != 1.0:
+        param_groups.append(
+            {"params": fresh_params, "lr": cfg.learning_rate * fresh_lr_mult})
+    accelerator.print(
+        f"[opt] fresh_lr_mult={fresh_lr_mult}  fresh={sum(p.numel() for p in fresh_params)} "
+        f"other={sum(p.numel() for p in other_params)}  "
+        f"lr={cfg.learning_rate} / {cfg.learning_rate * fresh_lr_mult}")
     try:
-        optimizer = torch.optim.AdamW(
-            model.trainable_modules(), lr=cfg.learning_rate, fused=True)
+        optimizer = torch.optim.AdamW(param_groups, fused=True)
     except (RuntimeError, ValueError):
-        optimizer = torch.optim.AdamW(model.trainable_modules(), lr=cfg.learning_rate)
+        optimizer = torch.optim.AdamW(param_groups)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda _: 1.0)
     model, optimizer, scheduler, train_dataloader = accelerator.prepare(
         model, optimizer, scheduler, train_dataloader
@@ -305,6 +332,16 @@ def main():
                     loss_masks[:, 1], pred.shape[-2:]).to(pred.dtype)
                 rgb_mask = rgb_mask.permute(0, 2, 1, 3, 4)   # [B, 1, V, h, w]
                 loss = _masked_mse(pred, rgb_gt, rgb_mask)
+                # Per-element weight from the module (w(sigma)=1/max(sigma,eps)^2,
+                # the GAE x-prediction equivalent).  With w == 1 this reduces
+                # exactly to _masked_mse above.
+                w = res.get("weight")
+                if torch.is_tensor(w):
+                    diff2 = (pred - rgb_gt).float().pow(2) * rgb_mask
+                    dims = tuple(range(1, diff2.dim()))
+                    num = diff2.sum(dim=dims)                        # [B]
+                    denom = rgb_mask.expand_as(diff2).sum().clamp_min(1.0)
+                    loss = (num * w.to(num.dtype).reshape(-1)).sum() / denom
 
                 # GAE-style RGB aux loss: module returns the UNWEIGHTED tensor
                 # (None on sigma-gated steps); the weight is applied here so it
@@ -331,12 +368,19 @@ def main():
                             f" rgb_aux={float(rgb_aux.detach()):.4f}"
                             if rgb_aux is not None else " rgb_aux=--"
                         )
+                        w_str = ""
+                        if torch.is_tensor(res.get("weight")):
+                            w_str = f" w_mean={float(res['weight'].mean()):.3f}"
                         accelerator.print(
                             f"step {global_step}: loss={loss.item():.6f} "
-                            f"sigma_mean={float(res['sigma'].mean()):.3f}{aux_str} lr={lr:.8f}"
+                            f"sigma_mean={float(res['sigma'].mean()):.3f}{aux_str}{w_str} "
+                            f"lr={lr:.8f}"
                         )
                         tb_writer.add_scalar("train/loss", loss.item(), global_step)
                         tb_writer.add_scalar("train/lr", lr, global_step)
+                        if torch.is_tensor(res.get("weight")):
+                            tb_writer.add_scalar(
+                                "train/w_mean", float(res["weight"].mean()), global_step)
                         if rgb_aux is not None:
                             tb_writer.add_scalar(
                                 "train/rgb_aux", float(rgb_aux.detach()), global_step)

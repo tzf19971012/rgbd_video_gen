@@ -1876,12 +1876,21 @@ class WanRGBDNVSTrainingModule(WanTrainingModule):
             return depth_out[:, :, v:], rgb_out[:, :, :v]
         return out
 
-    def _build_flow_input(self, inputs, noisy_rgb_latents, noisy_depth_latents=None):
+    def _build_flow_input(self, inputs, noisy_rgb_latents, noisy_depth_latents=None,
+                          cam_drop=None, ref_drop=None):
         """Assemble the DiT input latent.
 
         RGB: source slots keep the clean conditioning latents, target slots
         carry x_t.  The camera/role conditioning is re-added to the target slots
         so every view is told where it is being rendered from.
+
+        `cam_drop` / `ref_drop` ([B] bool tensors, CFG condition dropout, GAE
+        flow_gae128 protocol): cam_drop strips the additive camera/role
+        conditioning from ALL slots (source slots fall back to the clean
+        unconditioned latent, target slots to bare x_t); ref_drop replaces the
+        clean source evidence with pure noise so the target slots carry no
+        evidence at all.  Both together form the unconditional branch used by
+        classifier-free guidance.
 
         Depth (joint mode only): *every* slot carries x_t, because source-view
         disparity is a prediction target too -- unlike source RGB, which is the
@@ -1890,11 +1899,32 @@ class WanRGBDNVSTrainingModule(WanTrainingModule):
         Channel order must match _expand_patch_embedding exactly:
         [latent, depth (channel layout only), plucker, warp, modality flag].
         """
+        if cam_drop is not None or ref_drop is not None:
+            if self.token_layout != "channel" or noisy_depth_latents is not None:
+                raise ValueError(
+                    "CFG condition dropout is only implemented for the GAE "
+                    "channel layout (token_layout='channel', no depth branch)"
+                )
         model_in = inputs["rgb_latents"].clone()
         s = self.num_source_views
-        model_in[:, :, s:] = (
-            noisy_rgb_latents[:, :, s:].to(model_in.dtype) + inputs["view_condition"][:, :, s:]
+        noisy_tgt = (
+            noisy_rgb_latents[:, :, s:].to(model_in.dtype)
+            + inputs["view_condition"][:, :, s:]
         )
+        if cam_drop is not None:
+            m = cam_drop.reshape(-1, 1, 1, 1, 1).to(model_in.dtype)
+            noisy_tgt = torch.where(
+                m > 0.5, noisy_rgb_latents[:, :, s:].to(model_in.dtype), noisy_tgt)
+            # Source slots: rgb_latents carries z + view_condition; strip the
+            # conditioning add back to the bare clean latent.
+            z_src = inputs["gae_latents"][:, :, :s].to(model_in.dtype)
+            model_in[:, :, :s] = torch.where(
+                m > 0.5, z_src, model_in[:, :, :s])
+        model_in[:, :, s:] = noisy_tgt
+        if ref_drop is not None:
+            mr = ref_drop.reshape(-1, 1, 1, 1, 1).to(model_in.dtype)
+            noise_src = torch.randn_like(model_in[:, :, :s])
+            model_in[:, :, :s] = torch.where(mr > 0.5, noise_src, model_in[:, :, :s])
         dtype = model_in.dtype
         plucker = inputs.get("plucker_block")
         warp = inputs.get("warp_block")

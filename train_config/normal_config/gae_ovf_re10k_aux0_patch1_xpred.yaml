@@ -1,0 +1,109 @@
+# =============================================================================
+# 实验四扩展（B1-xpred）— patch1 + x-prediction（GAE 原版参数化）
+#
+# 动机：GAE 官方 stage2（configs/flow_gae64.yaml / flow_gae128.yaml）用的是
+#   prediction: 'x'        # 头直接预测干净 latent z
+#   rgb_loss_weight: 0.0   # （rgb_aux 关闭）
+# 损失路径（src/stage2/transport/flow.py:329-336）：头出 x_pred ->
+# convert_x_to_v（v = (x_t - x_pred)/max(t, 0.05)，paper Eq.11）-> 均匀 v 空间 MSE。
+# 注意：convert 误差 = x_err/t，所以该损失的权重剖面与 v 头均匀 v-MSE **等价**
+# ——patch1 现有 arm（v_loss_t_eps: 1.0 -> w=1）在剖面上一致。本 arm 改变的是
+# **参数化**（网络回归 x_pred 还是 v），不是损失加权：
+#   * 头输出 = x_pred，训练损失 = MSE((x_t - x_pred)/max(sigma,0.05), noise - z)
+#   * 采样端同用 convert_x_to_v 做 Euler 步
+# 其余（patch1 tokenization、8 场景、shift 4.5、25 步 eval、LoRA r128、
+# fresh_lr_mult 5x、seed 42）与 gae_ovf_re10k_aux0_patch1.yaml 逐位一致，
+# 单变量 = 参数化方式。判决：
+#   * loss 同为 v 空间 MSE，跨 arm 可比
+#   * tgt_rgb_psnr / LPIPS / delta1 对 patch1@200/400（13.78/0.636、13.51/0.573）
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_re10k_aux0_patch1_xpred"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5                  # 与 patch1 arm 一致，train/eval 自洽
+vae_encoding_mode: "independent"
+
+# --- tokenization（继承 patch1：与官方 GAE flow 同构的 1x1x1 patchify）---------
+gae_patch_mode: "patch1"
+
+# --- 参数化（本实验唯一主变量）------------------------------------------------
+gae_prediction: "x"                  # 'v' -> 'x'：GAE 原版，头直接出 x_pred
+
+# --- sigma 采样分布（与 patch1 一致）-------------------------------------------
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: -1.5
+rgb_flow_logit_std: 1.0
+
+# --- RGB aux loss（保持关闭：GAE 官方也是 0，隔离变量）--------------------------
+gae_rgb_loss_weight: 0.0
+gae_rgb_t_max: 0.4
+gae_rgb_max_views: 1
+
+# --- convert_x_to_v 的 t 下限（对齐 GAE flow.py t_eps_loss=0.05 默认值）---------
+v_loss_t_eps: 0.05
+
+# --- 新层学习率（与 patch1 一致）------------------------------------------------
+fresh_layer_lr_mult: 5.0
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 2      # 与 patch1 逐位一致：bs2x2 有效 batch 8
+batch_size: 2
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution --------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K overfit subset（与 patch1 完全相同的 8 场景）----------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

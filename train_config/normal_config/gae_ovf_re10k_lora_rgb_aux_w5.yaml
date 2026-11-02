@@ -1,0 +1,93 @@
+# =============================================================================
+# 实验一（overfit 可行性验证）— GAE-64 latent + RGB aux loss，小数据加大 RGB 权重
+#
+# 问题：当前框架（GAE-64 latent FM + 解码端 RGB aux）能否过拟合小数据，
+#       尤其是 RGB 指标（PSNR/LPIPS/观感）？
+#   - 之前 bmvs 8 场景过拟合 arm：PSNR 15.8→17.3 升但 LPIPS 0.645→0.791 崩（灰 mush）
+#   - 本 arm：同样 8 场景，但换 shift4.5 sigma 体系 + rgb 权重 1.0→5.0
+#
+# 与 gae_re10k_lora_rgb_aux_shift45.yaml 的差异（其余协议完全一致）：
+#   * num_train_samples 8（re10k manifest 前 8 个有 cache 的场景）
+#   * samples_per_scene 8 → 64 个样本（4 卡 DDP × bs4，每 epoch 4 步）
+#   * batch_size 16→4 / gradient_accumulation 1（有效 batch 仍 16）
+#   * gae_rgb_loss_weight 1.0→5.0（本实验唯一主变量）
+#   * validate_step 1000→100，max_steps 1000（过拟合曲线看 10 个 eval 点）
+# 参考上限：GAE-64 往返 decode ceiling ≈ 38.1 dB PSNR（16 帧 re10k 实测）。
+#   若训练 eval PSNR 逼近 ceiling 且 LPIPS 同步下降、可视化变锐 → 框架可过拟合；
+#   若 PSNR 平台在低位且图糊 → 问题在框架/latent 本身而非数据规模。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_re10k_rgb_aux_w5"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5                  # GAE 官方单视角 shift（与 shift45 arm 一致）
+vae_encoding_mode: "independent"
+
+# --- RGB aux loss -------------------------------------------------------------
+gae_rgb_loss_weight: 5.0        # 过拟合 arm：权重 1.0 -> 5.0
+gae_rgb_t_max: 0.6              # 与 shift4.5 sigma 分布匹配（触发率 ~14%）
+gae_rgb_max_views: 1            # 每样本每步最多解码 1 个 target view（控显存）
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1
+batch_size: 4                   # 4 卡 DDP × 4 = 有效 batch 16（与主线一致）
+num_epochs: 1000000
+max_steps: 8050                 # 1000 首轮已跑（续训自 step-900）；末尾 50 步缓冲：
+                                # step-8000 的 save 完成后才触发 break，规避两个 run
+                                # 都在"最后一步收尾"时 NPU 崩溃的问题（SIGABRT/SEGV）
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200              # 100 -> 200：8000 步 40 个 eval 点足够，省 eval 开销
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution (multiple of 14; 对齐 re10k 缓存 27x48 网格) ------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K overfit subset --------------------------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8            # 8 场景 × 8 = 64 样本
+num_train_samples: 8            # manifest 前 8 个场景
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6
