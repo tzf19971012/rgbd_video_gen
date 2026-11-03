@@ -734,6 +734,171 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         depth = torch.stack(depths).reshape(B, V, height, width)
         return rgb, depth
 
+    # -- pose-sensitivity diagnostic (GAE backend) -----------------------------
+
+    @torch.no_grad()
+    def evaluate_pose_sensitivity(self, batch, max_samples=4):
+        """GAE override of the parent's RGBD diagnostic.
+
+        Differences vs the parent version, everything else mirrored:
+          * sampling goes through `sample_latents` (Euler on the GAE latent,
+            cfg_scale pinned to 1.0 so the diagnostic measures pure
+            conditioning, not guidance) and decoding through the frozen codec
+            (`_decode_views`), never the Wan VAE -- these latents are
+            standardized 64-channel GAE codes, VAE-decoding them is garbage;
+          * add mode is SUPPORTED, and the RGBD-era refusal does not apply:
+            the parent refused because its add-mode pose swap would force a
+            second VAE encode of the conditioning images.  Here the clean
+            latent comes from the cache (`gae_latents`), so a pose swap is
+            the exact linear re-add  rgb_latents = gae_latents + vc_alt;
+            source slots are bit-identical because `_corrupt_pose_c2w` only
+            touches target rows, and the role embedding / source Plucker
+            field therefore do not move either;
+          * warp_shuffle / both_shuffle are DROPPED: this module pins
+            warp_mode="none", so there is no warp path to shuffle and the
+            variants would silently measure nothing.
+        Returns rows keyed  {all,covered,uncovered,lpips}_{variant}.
+        """
+        import math
+
+        was_training = self.training
+        self.eval()
+        device = self.pipe.device
+
+        def _slice(x, n):
+            if isinstance(x, (torch.Tensor, list)):
+                return x[:n]
+            return x
+
+        batch_small = {k: _slice(v, max_samples) for k, v in batch.items()}
+
+        def _psnr_masked(pred_img, gt_img, mask_img):
+            m = mask_img.expand_as(pred_img)
+            n = m.sum()
+            if n < 1:
+                return float("nan")
+            mse = ((((pred_img - gt_img) ** 2) * m).sum() / n).item()
+            if mse < 1e-10:
+                return 100.0
+            return -10 * math.log10(mse)
+
+        def _lpips(pred_img, gt_img):
+            net = self._get_lpips(device)
+            if net is None:
+                return float("nan")
+            with torch.no_grad():
+                d = net(pred_img.float() * 2 - 1, gt_img.float() * 2 - 1)
+            return float(d.mean())
+
+        # (name, pose corruption, plucker corruption); warp variants dropped.
+        variant_spec = (
+            ("baseline", None, None),
+            ("swap_tgt", "swap_tgt", None),
+            ("src0", "src0", None),
+            ("pose_shuffle", None, "shuffle"),
+        )
+
+        num_src = self.num_source_views
+        height, width = batch_small["images"].shape[-2:]
+        autocast_ctx = torch.autocast(
+            device_type="npu", dtype=self.pipe.torch_dtype, enabled=True
+        )
+        with autocast_ctx:
+            self._eval_inputs = True
+            try:
+                inputs_eval = self.forward_preprocess(batch_small)
+                # One extra preprocess per pose mode; only pose-derived tensors
+                # are kept.  In add mode the pose rides inside rgb_latents as
+                # z + vc, so the swap needs vc_alt AND the re-added latents.
+                keep_concat = ("plucker_block", "cape_pose", "roce_camera_latents")
+                alt_pose = {}
+                for mode in {s[1] for s in variant_spec if s[1] is not None}:
+                    batch_pose = dict(batch_small)
+                    batch_pose["c2w"] = self._corrupt_pose_c2w(
+                        batch_small["c2w"].to(device).float(), mode
+                    )
+                    alt = self.forward_preprocess(batch_pose)
+                    keys = keep_concat + (
+                        ("view_condition",) if self.view_condition_mode != "concat" else ()
+                    )
+                    alt_pose[mode] = {k: alt[k] for k in keys if alt.get(k) is not None}
+            finally:
+                self._eval_inputs = False
+
+            variants = {}
+            for name, pose_mode, plucker_mode in variant_spec:
+                inputs = dict(inputs_eval)
+                if pose_mode is not None:
+                    alt = alt_pose[pose_mode]
+                    if self.view_condition_mode == "concat":
+                        inputs.update(alt)
+                    else:
+                        vc_alt = alt["view_condition"]
+                        inputs["view_condition"] = vc_alt
+                        # Exact pose swap on the additive path; source slots
+                        # unchanged (vc_alt == vc_true there).
+                        inputs["rgb_latents"] = (
+                            inputs["gae_latents"] + vc_alt.to(inputs["gae_latents"].dtype)
+                        )
+                if plucker_mode is not None:
+                    blk = inputs.get("plucker_block")
+                    if blk is None:
+                        blk = inputs["view_condition"]
+                        inputs["view_condition"] = self._corrupt_warp_block(
+                            blk, plucker_mode
+                        )
+                    else:
+                        inputs["plucker_block"] = self._corrupt_warp_block(
+                            blk, plucker_mode
+                        )
+                gen = torch.Generator(device=device)
+                gen.manual_seed(self.eval_sample_seed)
+                variants[name] = self.sample_latents(
+                    inputs, num_steps=self.eval_num_inference_steps,
+                    generator=gen, cfg_scale=1.0,
+                )
+
+        def _decode_all(lat_bcvhw):
+            rgb, _ = self._decode_views(lat_bcvhw.float(), height, width)
+            return rgb.to(device)  # [B, V, 3, H, W]; codec returns on CPU
+
+        gt_px_all = _decode_all(inputs_eval["gae_latents"])
+        pred_px = {name: _decode_all(lat) for name, lat in variants.items()}
+
+        rgb_px_batch = batch_small["images"].to(device).float().clamp(0.0, 1.0)
+        disp_batch = batch_small["disparity"].to(device)
+        _, splat_mask = self._splat_sources_pixel(
+            rgb_px_batch, disp_batch[:, :num_src, 0].float(),
+            batch_small["K"].to(device).float(), inputs_eval["c2w"],
+        )
+
+        rows = []
+        for b in range(gt_px_all.shape[0]):
+            for tv in range(self.num_target_views):
+                vi = num_src + tv
+                gt_px = gt_px_all[b, vi]
+                m = splat_mask[b, tv]
+                while m.ndim > 2:
+                    m = m[0]          # [1,H,W] -> [H,W]; _psnr_masked re-adds
+                hole = 1.0 - m
+                ones = torch.ones_like(m)
+                row = {
+                    "sample_id": inputs_eval["sample_id"][b],
+                    "view_index": vi,
+                    "tgt_rgb_splat_coverage": float(m.mean()),
+                }
+                for name in pred_px:
+                    pred_img = pred_px[name][b, vi]
+                    row[f"all_{name}"] = _psnr_masked(pred_img, gt_px, ones[None])
+                    row[f"covered_{name}"] = _psnr_masked(pred_img, gt_px, m[None])
+                    row[f"uncovered_{name}"] = _psnr_masked(pred_img, gt_px, hole[None])
+                    row[f"lpips_{name}"] = _lpips(pred_img, gt_px)
+                rows.append(row)
+
+        if was_training:
+            self.train()
+        return rows
+
     # -- evaluation ------------------------------------------------------------
 
     @torch.no_grad()

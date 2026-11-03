@@ -1,0 +1,121 @@
+# =============================================================================
+# 判决实验 — 纯 color 流（真"完全照搬 Wan"对照）
+#
+# 问题：geo-color 里 color 分支的糊来自哪里？
+#   (a) 与 geo 流共享 trunk 的容量/梯度竞争，还是
+#   (b) "6 source -> 3 target 视角渲染"任务本身在当前数据/步数下收敛慢。
+#
+# 本配置去掉 geo 流：单一 16ch Wan VAE latent（re10k_ovf8_wan 缓存），
+# patch_embedding/head 逐位 load 回 Wan2.1 预训练权重（非 fresh init），
+# 均匀 v-MSE（Wan / GAE-shipped 损失剖面），LoRA r128，eval 用冻结 Wan VAE 解码。
+#
+# 除 [通道数 64->16、投影为预训练权重、无 geo 流] 外，数据/eval 协议与
+# ovf_geocolor_re10k_lora_20261102_104836 逐位一致（同 8 场景、6s3t、
+# logit_normal(-1.5)+shift4.5、25 步 ODE、seed 42），可逐指标配对比较。
+#
+# 判决：
+#   * 若它明显锐利（LPIPS/PSNR 显著优于 geocolor 同步数）-> 共享 trunk 竞争是主因
+#   * 若它同糊 -> 瓶颈是任务本身（数据/步数），而非实现或双流设计
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_purecolor_re10k_lora"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- latent backend：Wan VAE 16ch 离线缓存 -------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/wan_latent_cache"
+gae_dataset_name: "re10k_ovf8_wan"
+gae_stats_path: null
+gae_latent_channels: 16
+keep_pretrained_projections: true     # patch_embedding/head load 预训练权重
+gae_prediction: "v"                   # 均匀 v-MSE（Wan/GAE-shipped 剖面）
+vae_encoding_mode: "independent"
+
+# --- 相机条件：concat（老 run re10k13b_rand 的配方，add 效果不好）----------------
+# Plucker/相机特征作为独立通道块拼进 patch_embedding 输入
+# （latent 16ch 保留预训练权重，plucker 块 zero-init），逐位对齐
+# rgbd_video_gen/logs/re10k13b_rand20261023_011303 的 ViewConditionEncoder 配置。
+view_condition_mode: "concat"
+view_condition_out_channels: 384
+# 老 run 机制复刻：6ch 射线场在全像素分辨率栅格化，PixelUnshuffle(8) 折成
+# 384ch（每 latent cell 携带 8x8 子像素射线方向），作为独立通道块 concat 进
+# patch_embedding（latent 16ch 保留预训练权重，plucker 块 zero-init）。
+# 要求 pixel 网格严格 = 8 x latent 网格：376x672 = 8 x (47,84)，latent 网格与
+# 378x672 的 Wan 缓存完全一致，Wan VAE 解码也是精确的 376x672（无 crop/pad）。
+view_condition_plucker_resolution: "pixel"
+view_condition_pixel_scale: 8
+view_condition_use_role: false
+view_condition_normalize_moment: true
+
+# --- sigma 采样分布 ------------------------------------------------------------
+# mu 必须为 0（老 run / SD3 / Wan 标准）：logit_normal(-1.5)+shift4.5 下
+# P(sigma>0.9) 仅 ~1.4%，eval ODE 从 sigma=1 出发的第一步落在模型从未训过的
+# 区域 —— 探针实测 sigma=1 处 v 相对误差 113%（sigma<=0.9 仅 0.2-0.3），
+# 轨迹离轨发散（紫色/黑场）。mu=0 时 P(sigma>0.9) ~ 24%，覆盖充分。
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: 0.0
+rgb_flow_logit_std: 1.0
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5
+
+# --- 主损失（均匀 v-MSE：v_loss_t_eps=1.0 -> w=1）-------------------------------
+v_loss_t_eps: 1.0
+
+# --- 新层学习率：无 fresh 层（投影为预训练权重），全部 base LR --------------------
+fresh_layer_lr_mult: 1.0
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1
+batch_size: 4                         # 2 卡 x 4 = 有效 batch 8（同 geocolor）
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 400
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views（与 geocolor 逐位一致）----------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution（Wan 原生网格 47x84）--------------------------------------------
+# --- resolution（376x672 = 8 x latent(47,84)：concat pixel 模式硬要求）-----------
+resolution: [376, 672]
+
+# --- data: RealEstate10K overfit subset（与 geocolor 相同 8 场景）----------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

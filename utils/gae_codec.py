@@ -11,6 +11,7 @@ import numpy as np
 import torch
 
 _DEFAULT_GAE_ROOT = "/mnt/sfs_turbo/t00845730/GAE-GeometricAutoEncoder-main"
+_DEFAULT_DA3_SRC = "/mnt/sfs_turbo/t00845730/zhangyiheng/Depth-Anything-3/src"
 _DEFAULT_CODEC_CKPT = os.path.join(_DEFAULT_GAE_ROOT, "ckpts/gae_64.pt")
 _DEFAULT_CODEC_CFG = os.path.join(_DEFAULT_GAE_ROOT, "configs/gae_64.yaml")
 
@@ -43,6 +44,9 @@ class GAECodecWrapper:
             _utils_ns.__path__.append(_gae_utils_dir)
         if gae_root not in sys.path:
             sys.path.insert(0, gae_root)
+        # GAE 的 DA3 backbone 依赖 depth_anything_3（pip 未装，用本地源码）
+        if os.path.isdir(_DEFAULT_DA3_SRC) and _DEFAULT_DA3_SRC not in sys.path:
+            sys.path.append(_DEFAULT_DA3_SRC)
         from gae import GAE
 
         self.device = _pick_device(device)

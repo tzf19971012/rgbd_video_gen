@@ -70,8 +70,10 @@ from torch.utils.data import DataLoader, Subset
 
 from examples.dataset import Kubric4DRGBDNVSDataset
 from examples.wanvideo.model_training.eval_rgbd_nvs import frozen_eval_indices
+from examples.wanvideo.model_training.train_with_accelerate_gae_nvs import restrict_views_to_cache
 from examples.wanvideo.model_training.train_with_accelerate_rgbd_nvs import custom_collate_fn
 from examples.wanvideo.model_training.WanRGBDNVSTrainingModule import WanRGBDNVSTrainingModule
+from examples.wanvideo.model_training.WanGAENVSTrainingModule import WanGAENVSTrainingModule
 
 
 MODES = ("baseline", "swap_tgt", "src0", "pose_shuffle", "warp_shuffle", "both_shuffle")
@@ -89,11 +91,11 @@ def bin_by(rows, key, edges):
     return out
 
 
-def report_line(label, rows, prefix, digits=2):
+def report_line(label, rows, prefix, digits=2, modes=MODES):
     if not rows:
         return f"{label:<22}{0:>5}"
     cells = "".join(
-        f"{mean([r[f'{prefix}_{m}'] for r in rows]):>13.{digits}f}" for m in MODES
+        f"{mean([r[f'{prefix}_{m}'] for r in rows]):>13.{digits}f}" for m in modes
     )
     return f"{label:<22}{len(rows):>5}{cells}"
 
@@ -118,65 +120,117 @@ def main():
     set_seed(args.seed)
     accelerator = Accelerator(mixed_precision=cfg.mixed_precision)
 
-    model = WanRGBDNVSTrainingModule(
-        args=cfg,
-        accelerator=accelerator,
-        model_id_with_origin_paths=cfg.model_id_with_origin_paths,
-        trainable_models=cfg.trainable_models,
-        lora_rank=cfg.lora_rank,
-        lora_base_model=cfg.lora_base_model,
-        lora_target_modules=cfg.lora_target_modules,
-        use_gradient_checkpointing=False,
-        use_gradient_checkpointing_offload=False,
+    if cfg.get("gae_cache_root", None) is not None:
+        # GAE backend: same construction as eval_gae_nvs_ckpt.build_model.
+        model = WanGAENVSTrainingModule(
+            args=cfg,
+            accelerator=accelerator,
+            model_id_with_origin_paths=cfg.model_id_with_origin_paths,
+            trainable_models=cfg.trainable_models,
+            lora_rank=cfg.lora_rank,
+            lora_base_model=cfg.lora_base_model,
+            lora_target_modules=cfg.lora_target_modules,
+            local_model_path=cfg.get("wan_model_root", "./models"),
+            skip_download=cfg.get("skip_download", False),
+            use_gradient_checkpointing=False,
+            use_gradient_checkpointing_offload=False,
+            num_source_views=cfg.num_source_views,
+            num_target_views=cfg.num_target_views,
+            vae_encoding_mode=cfg.vae_encoding_mode,
+            init_dvd_ckpt=None,
+            view_condition_plucker_resolution=cfg.get(
+                "view_condition_plucker_resolution", "latent"),
+            view_condition_pixel_scale=cfg.get("view_condition_pixel_scale", 8),
+            view_condition_mode=cfg.get("view_condition_mode", "add"),
+            view_condition_use_role=cfg.get("view_condition_use_role", True),
+            view_condition_normalize_moment=cfg.get(
+                "view_condition_normalize_moment", False),
+            camera_geometry_fp32=cfg.get("camera_geometry_fp32", False),
+            rgb_flow_shift=cfg.get("rgb_flow_shift", 5.0),
+            rgb_flow_timestep_sampling=cfg.get(
+                "rgb_flow_timestep_sampling", "logit_normal"),
+            rgb_flow_logit_mean=cfg.get("rgb_flow_logit_mean", 0.0),
+            rgb_flow_logit_std=cfg.get("rgb_flow_logit_std", 1.0),
+            eval_num_inference_steps=cfg.get("eval_num_inference_steps", 25),
+            eval_flow_shift=cfg.get("eval_flow_shift", None),
+            eval_sample_seed=cfg.get("eval_sample_seed", 1234),
+            eval_lpips_net=cfg.get("eval_lpips_net", "alex"),
+            gae_cache_root=cfg.get("gae_cache_root"),
+            gae_dataset_name=cfg.get("gae_dataset_name", "bmvs"),
+            gae_stats_path=cfg.get("gae_stats_path", None),
+            gae_prediction=cfg.get("gae_prediction", "v"),
+            gae_rope_frame_axis=cfg.get("gae_rope_frame_axis", "view"),
+            gae_auto_flow_shift=cfg.get("gae_auto_flow_shift", True),
+            gae_codec_device=cfg.get("gae_codec_device", None),
+            gae_rgb_loss_weight=cfg.get("gae_rgb_loss_weight", 0.0),
+            gae_rgb_t_max=cfg.get("gae_rgb_t_max", 0.4),
+            gae_rgb_max_views=cfg.get("gae_rgb_max_views", 1),
+            gae_patch_mode=cfg.get("gae_patch_mode", "native"),
+            v_loss_t_eps=cfg.get("v_loss_t_eps", 0.05),
+            camera_drop_prob=cfg.get("camera_drop_prob", 0.0),
+            ref_drop_prob=cfg.get("ref_drop_prob", 0.0),
+            eval_cfg_scale=1.0,
+        )
+    else:
+        model = WanRGBDNVSTrainingModule(
+            args=cfg,
+            accelerator=accelerator,
+            model_id_with_origin_paths=cfg.model_id_with_origin_paths,
+            trainable_models=cfg.trainable_models,
+            lora_rank=cfg.lora_rank,
+            lora_base_model=cfg.lora_base_model,
+            lora_target_modules=cfg.lora_target_modules,
+            use_gradient_checkpointing=False,
+            use_gradient_checkpointing_offload=False,
         num_source_views=cfg.num_source_views,
         num_target_views=cfg.num_target_views,
         vae_encoding_mode=cfg.vae_encoding_mode,
         init_dvd_ckpt=None,
-        rgb_loss_weight=cfg.rgb_loss_weight,
-        depth_loss_weight=cfg.depth_loss_weight,
-        view_condition_plucker_resolution=cfg.get("view_condition_plucker_resolution", "latent"),
-        view_condition_pixel_scale=cfg.get("view_condition_pixel_scale", 8),
-        view_condition_mode=cfg.get("view_condition_mode", "add"),
-        view_condition_use_role=cfg.get("view_condition_use_role", True),
-        view_condition_normalize_moment=cfg.get("view_condition_normalize_moment", False),
-        latent_scale=cfg.get("latent_scale", 1.0),
-        depth_latent_scale=cfg.get("depth_latent_scale", None),
-        token_layout=cfg.get("token_layout", "channel"),
-        warp_mode=cfg.get("warp_mode", "none"),
-        warp_dropout_prob=cfg.get("warp_dropout_prob", 0.5),
-        warp_two_pass=cfg.get("warp_two_pass", True),
-        warp_perturb_prob=cfg.get("warp_perturb_prob", 0.0),
-        warp_perturb_gain_log_std=cfg.get("warp_perturb_gain_log_std", 0.34),
-        warp_perturb_shift_std=cfg.get("warp_perturb_shift_std", 0.059),
-        warp_perturb_blur_sigma=cfg.get("warp_perturb_blur_sigma", 2.0),
-        warp_perturb_lowfreq_std=cfg.get("warp_perturb_lowfreq_std", 0.05),
-        warp_perturb_lowfreq_cells=cfg.get("warp_perturb_lowfreq_cells", 6),
-        warp_perturb_fill_invalid=cfg.get("warp_perturb_fill_invalid", True),
-        warp_perturb_fill_scale=cfg.get("warp_perturb_fill_scale", 1.0),
-        # These nine leave the parameter shapes untouched (droce only half so),
-        # which means a checkpoint trained with them ON loads cleanly with them
-        # OFF and then reports numbers for a DIFFERENT model.  That failure has
-        # already cost this project 1.45 dB of pure harness artefact
-        # (report_20260907_c_sweep §9-1a).  Read them from the config, never
-        # default them for a checkpoint whose config says otherwise.
-        depth_warp_block=cfg.get("depth_warp_block", False),
-        per_frame_timestep=cfg.get("per_frame_timestep", False),
-        clean_source_depth=cfg.get("clean_source_depth", False),
-        clean_source_depth_prob=cfg.get("clean_source_depth_prob", 0.5),
-        shared_rope_frame_ids=cfg.get("shared_rope_frame_ids", False),
-        rope_frame_axis=cfg.get("rope_frame_axis", None),
-        rope_pose_translation_scale=cfg.get("rope_pose_translation_scale", None),
-        roce=cfg.get("roce", "off"),
-        camera_geometry_fp32=cfg.get("camera_geometry_fp32", False),
-        rgb_flow_matching=cfg.get("rgb_flow_matching", True),
-        rgb_flow_shift=cfg.get("rgb_flow_shift", 5.0),
-        depth_flow_matching=bool(cfg.get("depth_flow_matching", False)),
-        depth_head_init=cfg.get("depth_head_init", "pretrained"),
-        eval_num_inference_steps=cfg.get("eval_num_inference_steps", 25),
-        eval_flow_shift=cfg.get("eval_flow_shift", None),
-        eval_sample_seed=cfg.get("eval_sample_seed", 1234),
-        eval_lpips_net=cfg.get("eval_lpips_net", "alex"),
-    )
+            rgb_loss_weight=cfg.rgb_loss_weight,
+            depth_loss_weight=cfg.depth_loss_weight,
+            view_condition_plucker_resolution=cfg.get("view_condition_plucker_resolution", "latent"),
+            view_condition_pixel_scale=cfg.get("view_condition_pixel_scale", 8),
+            view_condition_mode=cfg.get("view_condition_mode", "add"),
+            view_condition_use_role=cfg.get("view_condition_use_role", True),
+            view_condition_normalize_moment=cfg.get("view_condition_normalize_moment", False),
+            latent_scale=cfg.get("latent_scale", 1.0),
+            depth_latent_scale=cfg.get("depth_latent_scale", None),
+            token_layout=cfg.get("token_layout", "channel"),
+            warp_mode=cfg.get("warp_mode", "none"),
+            warp_dropout_prob=cfg.get("warp_dropout_prob", 0.5),
+            warp_two_pass=cfg.get("warp_two_pass", True),
+            warp_perturb_prob=cfg.get("warp_perturb_prob", 0.0),
+            warp_perturb_gain_log_std=cfg.get("warp_perturb_gain_log_std", 0.34),
+            warp_perturb_shift_std=cfg.get("warp_perturb_shift_std", 0.059),
+            warp_perturb_blur_sigma=cfg.get("warp_perturb_blur_sigma", 2.0),
+            warp_perturb_lowfreq_std=cfg.get("warp_perturb_lowfreq_std", 0.05),
+            warp_perturb_lowfreq_cells=cfg.get("warp_perturb_lowfreq_cells", 6),
+            warp_perturb_fill_invalid=cfg.get("warp_perturb_fill_invalid", True),
+            warp_perturb_fill_scale=cfg.get("warp_perturb_fill_scale", 1.0),
+            # These nine leave the parameter shapes untouched (droce only half so),
+            # which means a checkpoint trained with them ON loads cleanly with them
+            # OFF and then reports numbers for a DIFFERENT model.  That failure has
+            # already cost this project 1.45 dB of pure harness artefact
+            # (report_20260907_c_sweep §9-1a).  Read them from the config, never
+            # default them for a checkpoint whose config says otherwise.
+            depth_warp_block=cfg.get("depth_warp_block", False),
+            per_frame_timestep=cfg.get("per_frame_timestep", False),
+            clean_source_depth=cfg.get("clean_source_depth", False),
+            clean_source_depth_prob=cfg.get("clean_source_depth_prob", 0.5),
+            shared_rope_frame_ids=cfg.get("shared_rope_frame_ids", False),
+            rope_frame_axis=cfg.get("rope_frame_axis", None),
+            rope_pose_translation_scale=cfg.get("rope_pose_translation_scale", None),
+            roce=cfg.get("roce", "off"),
+            camera_geometry_fp32=cfg.get("camera_geometry_fp32", False),
+            rgb_flow_matching=cfg.get("rgb_flow_matching", True),
+            rgb_flow_shift=cfg.get("rgb_flow_shift", 5.0),
+            depth_flow_matching=bool(cfg.get("depth_flow_matching", False)),
+            depth_head_init=cfg.get("depth_head_init", "pretrained"),
+            eval_num_inference_steps=cfg.get("eval_num_inference_steps", 25),
+            eval_flow_shift=cfg.get("eval_flow_shift", None),
+            eval_sample_seed=cfg.get("eval_sample_seed", 1234),
+            eval_lpips_net=cfg.get("eval_lpips_net", "alex"),
+        )
 
     weights = os.path.join(args.checkpoint, "model.safetensors")
     state = load_file(weights, device="cpu")
@@ -206,6 +260,19 @@ def main():
         split_path=args.split_path or cfg.get("split_path", None),
         split=args.split or cfg.get("eval_split", None),
     )
+    if cfg.get("gae_cache_root", None) is not None:
+        if cfg.get("num_train_samples", None) is not None:
+            # Mirror the training entry point: the overfit arms restrict
+            # records to the first num_train_samples scenes, and their frozen
+            # eval set lives inside that subset.
+            dataset.records = dataset.records[: int(cfg.num_train_samples)]
+        # Same clip the training entry point applies: drop views the offline
+        # GAE cache does not carry, or the latent loader KeyErrors mid-eval.
+        restrict_views_to_cache(
+            dataset, cfg.get("gae_cache_root"),
+            cfg.get("gae_dataset_name", "bmvs"),
+            int(cfg.num_source_views) + int(cfg.num_target_views), accelerator,
+        )
     indices = frozen_eval_indices(dataset, args.eval_max_samples, cfg.get("samples_per_scene", 1))
     accelerator.print(
         f"eval set identity: manifest={os.path.basename(manifest_path)} "
@@ -233,9 +300,15 @@ def main():
     for i, batch in enumerate(loader):
         batch_rows = model.evaluate_pose_sensitivity(batch, max_samples=per_batch)
         rows.extend(batch_rows)
-        accelerator.print(f"[batch {i}] " + report_line("", batch_rows, "all").strip())
+        b_modes = (tuple(k.split("_", 1)[1] for k in batch_rows[0] if k.startswith("all_"))
+                   if batch_rows else MODES)
+        accelerator.print(f"[batch {i}] " + report_line("", batch_rows, "all", modes=b_modes).strip())
 
-    header = f"{'stratum':<22}{'n':>5}" + "".join(f"{m:>13}" for m in MODES)
+    # GAE rows carry no warp variants (warp_mode="none"); derive the column
+    # set from the rows themselves instead of assuming the RGBD six.
+    modes = (tuple(k.split("_", 1)[1] for k in rows[0] if k.startswith("all_"))
+             if rows else MODES)
+    header = f"{'stratum':<22}{'n':>5}" + "".join(f"{m:>13}" for m in modes)
     # LPIPS is full-frame only (see `_lpips` in the module) and LOWER is better,
     # so its delta column is signed the other way.  Both metrics are printed
     # because PSNR on its own cannot adjudicate this: its optimum is the
@@ -253,17 +326,17 @@ def main():
         )
         accelerator.print(header)
         accelerator.print("-" * len(header))
-        accelerator.print(report_line("ALL", rows, prefix, digits))
+        accelerator.print(report_line("ALL", rows, prefix, digits, modes=modes))
         accelerator.print("-" * len(header))
         for (lo, hi), sel in bin_by(
             rows, "tgt_rgb_splat_coverage", [0.0, 0.2, 0.35, 0.5, 0.65, 1.01]
         ):
             accelerator.print(
-                report_line(f"coverage [{lo:.2f},{hi:.2f})", sel, prefix, digits)
+                report_line(f"coverage [{lo:.2f},{hi:.2f})", sel, prefix, digits, modes=modes)
             )
         base = mean([r[f"{prefix}_baseline"] for r in rows])
         accelerator.print("-" * len(header))
-        for m in MODES[1:]:
+        for m in modes[1:]:
             d = mean([r[f"{prefix}_{m}"] for r in rows]) - base
             tag = "" if prefix == "lpips" else " dB"
             hurt = (d < 0) if better == "higher" else (d > 0)

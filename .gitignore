@@ -29,3 +29,7 @@ __pycache__/
 # Ascend 编译缓存
 kernel_meta/
 log_history/
+log_blur/
+log_purecolor/
+reports/diag_pose_sensitivity/
+reports/diag_pose_sensitivity_*.log

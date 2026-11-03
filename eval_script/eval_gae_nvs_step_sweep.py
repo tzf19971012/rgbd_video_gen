@@ -83,11 +83,16 @@ def main():
         num_target_views=cfg.num_target_views,
         vae_encoding_mode=cfg.vae_encoding_mode,
         init_dvd_ckpt=None,
+        gae_latent_channels=cfg.get("gae_latent_channels", 64),
+        view_condition_out_channels=cfg.get("view_condition_out_channels", 16),
+        keep_pretrained_projections=cfg.get("keep_pretrained_projections", False),
         view_condition_plucker_resolution=cfg.get(
             "view_condition_plucker_resolution", "latent"),
         view_condition_pixel_scale=cfg.get("view_condition_pixel_scale", 8),
         view_condition_mode=cfg.get("view_condition_mode", "add"),
         view_condition_use_role=cfg.get("view_condition_use_role", True),
+        view_condition_normalize_moment=cfg.get(
+            "view_condition_normalize_moment", False),
         camera_geometry_fp32=cfg.get("camera_geometry_fp32", False),
         rgb_flow_shift=cfg.get("rgb_flow_shift", 5.0),
         rgb_flow_timestep_sampling=cfg.get(

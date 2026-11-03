@@ -1,0 +1,102 @@
+# =============================================================================
+# GAE-64 latent 全量 RealEstate10K — patch1（1x1x1 patchify）主线上量配置
+#
+# 基于 8 场景判决实验 gae_ovf_re10k_aux0_patch1.yaml（当前最优 arm：
+# step 1200 LPIPS 0.528，优于 aux0 训满 8050 步的 0.565），协议迁移到全量：
+#
+#   * 与 overfit 版一致：gae_patch_mode=patch1 / 均匀 v-MSE(v_loss_t_eps=1.0)
+#     / rgb_aux 关闭 / shift 4.5 + logit(-1.5,1) / LoRA r128 / fresh_lr 5x / seed 42
+#   * 数据：全量 re10k（gae trainer 的 restrict_views_to_cache 会自动把
+#     每场景视图池裁剪到 latent cache 覆盖的视图，实测 7884 场景全保留）
+#   * batch：patch1 每 rank 显存重（~11.7k token），bs2×accum4 = 每 rank 等效
+#     8；4 卡 → 有效 batch 32。卡多时按比例上调 accum（目标有效 batch 48 对齐
+#     wtloss 主线：4 卡节点 ×N，accum = 48/(2*4N) 取整）
+#   * max_steps 100000（对齐 wtloss 主线）；云道启动用
+#     train_script/yundao_train_gae_patch1_re10k.sh
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/gae_re10k_patch1"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5
+vae_encoding_mode: "independent"
+
+# --- tokenization（本实验核心变量）--------------------------------------------
+gae_patch_mode: "patch1"
+
+# --- sigma 采样分布（与 overfit patch1 一致）----------------------------------
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: -1.5
+rgb_flow_logit_std: 1.0
+
+# --- RGB aux loss（保持关闭；补 aux 用 patch1_aux5 配方 w5@t0.6）--------------
+gae_rgb_loss_weight: 0.0
+gae_rgb_t_max: 0.6
+gae_rgb_max_views: 1
+
+# --- 主损失：均匀 v-MSE（overfit 判决胜出的配方）------------------------------
+v_loss_t_eps: 1.0
+
+# --- 新层学习率 ----------------------------------------------------------------
+fresh_layer_lr_mult: 5.0
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 4
+batch_size: 2
+num_epochs: 1000000
+max_steps: 100000
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 1000
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution --------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data: 全量 RealEstate10K -------------------------------------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 10
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 8
