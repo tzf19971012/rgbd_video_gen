@@ -1927,6 +1927,15 @@ class WanRGBDNVSTrainingModule(WanTrainingModule):
             model_in[:, :, :s] = torch.where(mr > 0.5, noise_src, model_in[:, :, :s])
         dtype = model_in.dtype
         plucker = inputs.get("plucker_block")
+        if cam_drop is not None and plucker is not None:
+            # concat mode: the plucker channel block IS the camera
+            # conditioning -- cam_drop must strip it too, or the
+            # "unconditional" branch still reads the ray field.  add mode is
+            # already covered above (its conditioning enters through
+            # model_in / noisy_tgt via inputs["view_condition"]).
+            mp = cam_drop.reshape(-1, 1, 1, 1, 1).to(dtype)
+            plucker = torch.where(
+                mp > 0.5, torch.zeros_like(plucker.to(dtype)), plucker.to(dtype))
         warp = inputs.get("warp_block")
 
         if self.token_layout == "sequence":
