@@ -166,8 +166,10 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         self.gae_latent_std = std.to(self.pipe.device)
 
         # The parent kept the 16-channel Wan projections (nothing needed
-        # widening under the forced config). Both must be replaced: the latent
-        # space has 64 channels in AND out.
+        # widening under the forced config: this module overrides
+        # _needs_extra_input_channels() to False, so concat-mode plucker
+        # channels are added by the fresh conv below, not by the parent).
+        # Both must be replaced: the latent space has 64 channels in AND out.
         dit = self.pipe.dit
         old_conv = dit.patch_embedding
         old_head = dit.head
@@ -194,8 +196,22 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         else:
             conv_kernel, conv_stride = old_conv.kernel_size, old_conv.stride
             head_patch = old_head.patch_size
+        # Concat-mode camera conditioning rides in as its OWN input channel
+        # block appended after the latent (parent _build_flow_input, channel
+        # layout), so the fresh conv must carry it: 64 latent + plucker block
+        # (294 at pixel_scale=7 / 384 at 8).  This module forces
+        # _needs_extra_input_channels()=False, so the parent's widening never
+        # ran -- if the extra block is not re-accounted here the first forward
+        # feeds 64+plucker channels into a 64-channel conv and dies.
+        # Zero-init the plucker slice so step 0 is numerically the
+        # camera-free model (matches the parent's widening contract).
+        concat_plucker_ch = (
+            self.view_condition_encoder.out_channels
+            if self.view_condition_mode == "concat"
+            else 0
+        )
         dit.patch_embedding = torch.nn.Conv3d(
-            self.gae_latent_channels,
+            self.gae_latent_channels + concat_plucker_ch,
             old_conv.out_channels,
             kernel_size=conv_kernel,
             stride=conv_stride,
@@ -204,6 +220,11 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         ).to(device=old_conv.weight.device, dtype=old_conv.weight.dtype)
         torch.nn.init.kaiming_normal_(
             dit.patch_embedding.weight, nonlinearity="linear")
+        if concat_plucker_ch:
+            with torch.no_grad():
+                dit.patch_embedding.weight[
+                    :, self.gae_latent_channels:
+                ].zero_()
         if dit.patch_embedding.bias is not None:
             torch.nn.init.zeros_(dit.patch_embedding.bias)
 
@@ -214,8 +235,10 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         dit.rgb_head = None
         self.accelerator.print(
             f"[gae] patch_mode={self.gae_patch_mode}: patch_embedding -> "
-            f"Conv3d({self.gae_latent_channels}, {old_conv.out_channels}, "
-            f"kernel={conv_kernel}) (fresh), head -> Head(out_dim="
+            f"Conv3d({self.gae_latent_channels}+{concat_plucker_ch}, "
+            f"{old_conv.out_channels}, "
+            f"kernel={conv_kernel}) (fresh, plucker block zero-init), "
+            f"head -> Head(out_dim="
             f"{self.gae_latent_channels}, patch={head_patch}) (fresh), "
             f"dit.patch_size={dit.patch_size}, rgb_head removed."
         )
@@ -359,11 +382,13 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         width = data["images"].shape[-1]
 
         z = self._load_cached_latents(data)          # [B, C, V, h, w], standardized, EVEN grid
-        # The ray field must sit on the TRUE working grid (height//14 at native,
-        # 2x that in the upsample2 arm -- i.e. the grid z actually carries).
-        latent_height, latent_width = height // 14, width // 14
-        latent_height *= self._gae_upsample
-        latent_width *= self._gae_upsample
+        # The ray field must sit on the TRUE working grid -- the grid z actually
+        # carries, recorded pre-pad by _load_cached_latents.  For the GAE cache
+        # that is height//14 (x2 in upsample2); for a Wan-VAE cache (pure-color)
+        # it is the wan native grid -- deriving it as height//14 here would
+        # zero-pad the conditioning field into the wrong corner.
+        assert self._gae_true_grid is not None, "latent loader must record the true grid"
+        latent_height, latent_width = self._gae_true_grid
 
         context = self._null_text_embed.to(
             dtype=self.pipe.torch_dtype, device=self.pipe.device
@@ -407,7 +432,20 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
                                  0, z.shape[-2] - view_condition.shape[-2])
             )
 
-        conditioning = z + view_condition            # source evidence rides in
+        if self.view_condition_mode == "concat":
+            # Parent's concat path (WanRGBDNVSTrainingModule.forward_preprocess):
+            # the camera block rides as its OWN input channel block --
+            # _build_flow_input appends inputs["plucker_block"] after the
+            # latents (channel order matches the widened patch_embedding
+            # [latent, plucker]).  Nothing is summed into the latents.
+            conditioning = z
+            plucker_block = view_condition
+            additive_condition = torch.zeros_like(z)
+        else:
+            conditioning = z + view_condition    # source evidence rides in
+            plucker_block = None
+            additive_condition = view_condition
+
         inputs = {
             # DiT forward kwargs (everything else is swallowed by **kwargs)
             "context": context,
@@ -422,7 +460,10 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
             "use_gradient_checkpointing_offload": self.use_gradient_checkpointing_offload,
             # GAE latents
             "rgb_latents": conditioning,
-            "view_condition": view_condition,
+            "view_condition": additive_condition,
+            # Only set in mode="concat": appended as its own channel block in
+            # _build_flow_input instead of being summed in.
+            "plucker_block": plucker_block,
             "gae_latents": z,        # clean, standardized, unconditioned
             # Targets / metadata
             "rgb_gt": z,
@@ -627,6 +668,11 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
                     z.shape, device=z.device, dtype=x.dtype)
                 uncond_inputs["view_condition"] = torch.zeros_like(
                     inputs["view_condition"])
+                if inputs.get("plucker_block") is not None:
+                    # concat mode: the camera block is an input channel block;
+                    # the unconditional branch must strip it too.
+                    uncond_inputs["plucker_block"] = torch.zeros_like(
+                        inputs["plucker_block"])
                 v_uncond = _to_velocity(
                     self._forward_model(
                         uncond_inputs,
@@ -728,18 +774,20 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         height = batch_small["images"].shape[-2]
         width = batch_small["images"].shape[-1]
         pred_rgb, pred_depth = self._decode_views(pred_z, height, width)
+        want_depth = pred_depth is not None     # pure-color decode has no depth
 
         gt_rgb = batch_small["images"].to(device).float().clamp(0, 1)
-        gt_depth = batch_small["depth_metric"][:, :, 0].to(device).float()
-        valid = (gt_depth > 1e-3).float()
         tgt = slice(self.num_source_views, self.num_views)
 
         lpips_net = self._get_lpips(device)
-        metrics = {
-            "tgt_rgb_psnr": [], "tgt_rgb_lpips": [],
-            "tgt_depth_abs_rel": [], "tgt_depth_abs_rel_aligned": [],
-            "tgt_depth_delta1": [], "src_depth_abs_rel": [],
-        }
+        metrics = {"tgt_rgb_psnr": [], "tgt_rgb_lpips": []}
+        if want_depth:
+            metrics.update({
+                "tgt_depth_abs_rel": [], "tgt_depth_abs_rel_aligned": [],
+                "tgt_depth_delta1": [], "src_depth_abs_rel": [],
+            })
+            gt_depth = batch_small["depth_metric"][:, :, 0].to(device).float()
+            valid = (gt_depth > 1e-3).float()
         B = pred_rgb.shape[0]
         for b in range(B):
             for v in range(self.num_source_views, self.num_views):
@@ -751,6 +799,8 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
                     with torch.no_grad():
                         metrics["tgt_rgb_lpips"].append(float(lpips_net(
                             pr[None].float() * 2 - 1, gr[None].float() * 2 - 1)))
+                if not want_depth:
+                    continue
                 pd, gd = pred_depth[b, v].to(device), gt_depth[b, v]
                 m = valid[b, v].bool() & torch.isfinite(gd)
                 if m.sum() >= 16:
@@ -760,9 +810,11 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
                     scale = float(g.median() / p.median().clamp_min(1e-6))
                     pa = p * scale
                     metrics["tgt_depth_abs_rel_aligned"].append(float(
-                        ((pa - g).abs() / g).mean()))
+                        ((pa - g) / g).abs().mean()))
                     metrics["tgt_depth_delta1"].append(float(
                         (torch.maximum(pa / g, g / pa) < 1.25).float().mean()))
+            if not want_depth:
+                continue
             for v in range(self.num_source_views):
                 pd = pred_depth[b, v].to(device)
                 gd = gt_depth[b, v]

@@ -1,0 +1,142 @@
+# =============================================================================
+# 实验 — 相机注入强化：add@latent(6ch) -> concat@pixel(294ch)
+#
+# 动机：ovf 系列推理观感 = 相机控制力弱。既有诊断（tools/diag_pose_sensitivity.py
+# 头注释）表明显式 warp 路径 shuffle 掉 3.37 dB（模型确实读几何），而抽象 pose
+# 路径从未被证实被读到——anchor 的注入恰是最弱档：
+#   view_condition_mode="add"：Plucker 场经 3 层 CNN 瓶颈压成 64ch，只在输入端
+#   加一次，LoRA 极易把它学没；未覆盖像素（约 47%）只靠它。
+#
+# 本 arm（唯一主变量 = 注入方式，其余协议与 gae_ovf_re10k_aux0_upsample2.yaml
+# 逐位一致，直接配对比较）：
+#   view_condition_mode="concat"：Plucker 块作为独立输入通道块走 DiT 自己的
+#     patch_embedding，每个通道拿到独立权重，不再过 3 层 CNN 瓶颈；
+#   view_condition_plucker_resolution="pixel"：射线场在 378x672 像素栅格上生成，
+#     PixelUnshuffle 折进通道维 —— 每 latent 像素 6*7^2=294ch，7x7 子位置由
+#     patch_embedding 自行学习池化（"add"@latent 只点采样 1/49）。
+#
+# pixel_scale=7 的推导（不能照搬 bmvs14b 的 8）：GAE-64 codec 网格 = H/14
+# （378x672 -> 27x48），upsample2 臂的工作网格 x2 = 54x96；ViewConditionEncoder
+# 强制 pixel 网格 = latent 网格 x pixel_scale（view_condition.py:192 硬校验），
+# 378=54*7、672=96*7 -> 唯一合法值 7。patch_embedding in_ch = 64+294 = 358。
+#
+# 代码前提（已改）：WanGAENVSTrainingModule 重建 patch_embedding 时按
+# concat out_channels 加宽且 plucker 切片零初始化（step 0 数值上等于
+# camera-free 模型，与父类 _expand_patch_embedding 的契约一致）；本模块
+# override _needs_extra_input_channels()=False，父类加宽不会重复执行。
+#
+# 其余注入相关项：
+#   * view_condition_use_role：concat 模式下 view_condition.py 强制关闭
+#     （源/目标槽由 clean vs noisy latent 区分，恒定 role 通道正是 add 模式
+#     encoder 塌缩成 role 指示器的捷径）；
+#   * view_condition_normalize_moment=False：保留 moment 的公制尺度
+#     （per-view RMS 归一化会把 pose 场做成平移不变 = 钝化控制，见
+#     diag_baseline_invariance.py），与 anchor 默认一致；
+#   * camera_drop_prob=0：与 anchor 一致；concat 模式下训练端 cam_drop 尚未
+#     strip plucker 通道块（sample_latents 的 eval-CFG 分支已支持），
+#     若后续要开 pose-CFG 需先补 _build_flow_input。
+#
+# 判据（同 8 场景、同 eval 25 步 shift 4.5、同 seed 42、同 8050 步）：
+#   * 主判据 = tools/diag_pose_sensitivity.py 的 swap_tgt 敏感度：anchor 上
+#     先跑一次留基线，本 arm 训完同脚本复测，target pose 换位造成的
+#     PSNR/LPIPS 恶化应显著大于 anchor（= pose 路径真的被读）；
+#   * LPIPS/PSNR 与 anchor 对比（注入变强不应劣化重建质量）；
+#   * 推理可视化：改变目标位姿（平移/旋转）观察生成视角是否跟随。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_re10k_aux0_upsample2_concatpixel"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5                  # 与 anchor 一致，train/eval 自洽
+vae_encoding_mode: "independent"
+
+# --- tokenization（与 anchor 一致）--------------------------------------------
+gae_patch_mode: "upsample2"          # 工作网格 54x96，pixel_scale=7 的前提
+
+# --- 相机注入（本实验唯一主变量）----------------------------------------------
+view_condition_mode: "concat"        # Plucker 块走独立输入通道块（358ch 进 conv）
+view_condition_plucker_resolution: "pixel"   # 378x672 栅格生成射线场
+view_condition_pixel_scale: 7        # 54x7=378, 96x7=672；6*7^2=294ch/latent 像素
+view_condition_use_role: false       # concat 模式强制关闭（编码器内部一致）
+view_condition_normalize_moment: false       # 保留公制尺度
+camera_drop_prob: 0.0                # concat 训练端 drop 未接，见头注释
+ref_drop_prob: 0.0
+eval_cfg_scale: 1.0
+
+# --- sigma 采样分布（与 anchor 一致）------------------------------------------
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: -1.5
+rgb_flow_logit_std: 1.0
+
+# --- RGB aux loss（保持关闭，隔离变量）----------------------------------------
+gae_rgb_loss_weight: 0.0
+gae_rgb_t_max: 0.4
+gae_rgb_max_views: 1
+
+# --- 主损失加权（与 anchor 逐位一致：均匀 v-MSE）-------------------------------
+v_loss_t_eps: 1.0
+
+# --- 新层学习率（与 anchor 一致；concat 下 patch_embedding 含 plucker 切片）----
+fresh_layer_lr_mult: 5.0
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 2      # 与 anchor 一致：bs2x2 有效 batch 8
+batch_size: 2
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution --------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K overfit subset（与 anchor 完全相同的 8 场景）----------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

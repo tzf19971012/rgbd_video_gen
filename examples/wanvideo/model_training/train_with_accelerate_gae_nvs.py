@@ -200,6 +200,8 @@ def main():
         view_condition_pixel_scale=cfg.get("view_condition_pixel_scale", 8),
         view_condition_mode=cfg.get("view_condition_mode", "add"),
         view_condition_use_role=cfg.get("view_condition_use_role", True),
+        view_condition_normalize_moment=cfg.get(
+            "view_condition_normalize_moment", False),
         camera_geometry_fp32=cfg.get("camera_geometry_fp32", False),
         rgb_flow_shift=cfg.get("rgb_flow_shift", 5.0),
         rgb_flow_timestep_sampling=cfg.get("rgb_flow_timestep_sampling", "logit_normal"),
