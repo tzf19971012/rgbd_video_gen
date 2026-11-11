@@ -1,0 +1,52 @@
+{
+  "date": "2026-11-11",
+  "experiments": [
+    {
+      "date": "2026-11-11",
+      "experiment_id": "projection_test10_20261111_171352",
+      "scene_count": 10,
+      "completed_jobs": 30,
+      "video_count": 60,
+      "checkpoints": {
+        "control": 8200,
+        "gae": 6000,
+        "rgb": 6000
+      },
+      "metrics": {
+        "control": {
+          "tgt_rgb_psnr": 15.917795051070323,
+          "tgt_rgb_lpips": 0.41269177575906113,
+          "tgt_depth_abs_rel_aligned": 0.18962633145352203,
+          "tgt_depth_delta1": 0.7834125382701556,
+          "large15_20_psnr": 14.718032103696743,
+          "yaw0_psnr": 17.134631031736696
+        },
+        "gae": {
+          "tgt_rgb_psnr": 18.910237303890007,
+          "tgt_rgb_lpips": 0.2919273414214452,
+          "tgt_depth_abs_rel_aligned": 0.14459700579444568,
+          "tgt_depth_delta1": 0.8654002913832665,
+          "large15_20_psnr": 19.144016779857203,
+          "yaw0_psnr": 22.521418412932096
+        },
+        "rgb": {
+          "tgt_rgb_psnr": 19.182620974072314,
+          "tgt_rgb_lpips": 0.2930655227601528,
+          "tgt_depth_abs_rel_aligned": 0.14923179337133963,
+          "tgt_depth_delta1": 0.857351242552201,
+          "large15_20_psnr": 18.99667103790156,
+          "yaw0_psnr": 22.315791334318227
+        }
+      },
+      "conclusion": "当前projection模型在10个场景的真实轨迹PSNR、LPIPS及大角度旋转PSNR均优于control。保留projection作为默认主线；GAE和RGB没有全面赢家。",
+      "limitations": [
+        "不同checkpoint的训练历史、有效batch及相机跨度采样配置不同，不能孤立量化projection的因果贡献。",
+        "深度为估计标签且逐图尺度对齐；横移没有GT；没有评估真实三维点云一致性。"
+      ],
+      "resource_recommendation": "建议降低control优先级，保留checkpoint与评估；尚未执行停止训练。",
+      "report": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/report.html",
+      "verification": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/verification.json",
+      "recorded_at": "2026-11-11 18:42:13 +0800"
+    }
+  ]
+}

@@ -315,7 +315,7 @@
   "target_frames_per_trajectory": 15,
   "synthetic_frames": 15,
   "depth_reference": "estimated DA3 depths, not sensor GT; per-frame median scale aligned",
-  "card": 7,
+  "card": 2,
   "workers": 2,
   "card_gate": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/npu7_projection_evaluation.lock",
   "started": 1794388437.4455414,
@@ -323,5 +323,11 @@
     "Unequal training steps and training histories",
     "Projection runs camera_span_prob=.5, control=0",
     "Training effective global batches differ; observational checkpoint comparison, not isolated causal ablation"
-  ]
+  ],
+  "cards": {
+    "control": 2,
+    "gae": 3,
+    "rgb": 2
+  },
+  "hardware_note": "NPU7 reserved by user. Other workloads later occupied NPU4/5. Remaining batch uses NPU2/3, preserving and retrying failed GPU4 probes."
 }

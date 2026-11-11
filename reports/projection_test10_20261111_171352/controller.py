@@ -1,6 +1,6 @@
 import os,json,time,subprocess,concurrent.futures,fcntl,threading,traceback
 from pathlib import Path
-P=Path(__file__).parent;C=json.loads((P/'plan.json').read_text());B=Path(C['base']);LOCK=threading.RLock();STOP=threading.Event();JOBS=[];CARD_LOCKS={a:threading.Lock() for a in [2,3,4]}
+P=Path(__file__).parent;C=json.loads((P/'plan.json').read_text());B=Path(C['base']);LOCK=threading.RLock();STOP=threading.Event();JOBS=[];CARD_LOCKS={a:threading.Lock() for a in [2,3]}
 def atomic(path,obj):
  q=path.with_suffix(path.suffix+'.tmp');q.write_text(json.dumps(obj,indent=2));q.replace(path)
 def refresh():
@@ -61,7 +61,7 @@ def main():
    if oldj.get('status')=='running' and oldj.get('pid') and Path('/proc/'+str(oldj['pid'])).exists():j.update(adopt_pid=oldj['pid'],pid=oldj['pid'],assigned_card=oldj.get('card',C['cards'][arm]),card=oldj.get('card',C['cards'][arm]))
    JOBS.append(j)
  refresh();threading.Thread(target=ticker,daemon=True).start()
- with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+ with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
   pending=[j for j in JOBS if not j.get("adopt_pid")]
   def run_card(card):
    for job in JOBS:
@@ -71,7 +71,7 @@ def main():
      if not pending:return
      job=pending.pop(0);job["assigned_card"]=card;job["card"]=card
     work(job)
-  futures=[pool.submit(run_card,card) for card in [4,2,3]]
+  futures=[pool.submit(run_card,card) for card in [2,3]]
   for f in concurrent.futures.as_completed(futures):
    try:f.result()
    except Exception:print(traceback.format_exc(),flush=True)

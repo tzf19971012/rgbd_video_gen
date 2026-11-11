@@ -39,7 +39,13 @@ if paired:
   depthwins=sum(data[s][a]['trajectory']['tgt_depth_abs_rel_aligned']<data[s]['control']['trajectory']['tgt_depth_abs_rel_aligned'] for s in paired)
   parts.append(f'<li>{a.upper()} projection：真实轨迹 PSNR 在 {rgbwins}/{len(paired)} 个场景高于 control；大角度旋转在 {yawwins}/{len(paired)} 个场景更高；对齐深度 AbsRel 在 {depthwins}/{len(paired)} 个场景更低。</li>')
  parts.append('</ul>')
-parts.append('<h2>评估边界</h2><ul><li>深度参考是已有 DA3 估计值，并非传感器真值；深度指标逐图做中值尺度对齐，不能证明绝对尺度准确或超过 DA3。</li><li>旋转 PSNR 只计算纯旋转单应变换可验证的重叠区域；横移探针没有真实目标图，只做视觉诊断。</li><li>训练步数、历史、有效 batch 和相机跨度采样配置不同。结果比较当前模型表现，不能把差异全部归因于投影模块。</li><li>10个场景是小样本验证，不代表整个测试集；报告保留全部场景及失败情况。</li></ul>')
+qual=P/'qualitative_analysis.json'
+if qual.exists():
+ q=json.loads(qual.read_text());parts.append('<h2>画面分析与结论</h2>')
+ for item in q['sections']:
+  parts.append('<h3>'+esc(item['title'])+'</h3>')
+  for paragraph in item['paragraphs']:parts.append('<p>'+esc(paragraph)+'</p>')
+parts.append('<h2>评估边界</h2><ul><li>深度参考是已有 DA3 估计值，并非传感器真值；深度指标逐图做中值尺度对齐，不能证明绝对尺度准确或超过 DA3。</li><li>旋转 PSNR 只计算纯旋转单应变换可验证的重叠区域；横移探针没有真实目标图，只做视觉诊断。</li><li>训练步数、历史、有效 batch 和相机跨度采样配置不同。结果比较当前模型表现，不能把差异全部归因于投影模块。</li><li>探针深度画面逐帧独立归一化，颜色不能用于比较跨帧绝对深度或尺度。</li><li>10个场景是小样本验证，不代表整个测试集；报告保留全部场景及失败情况。</li></ul>')
 parts.append('<h2>逐场景结果与视频</h2>')
 for sid in C['scenes']:
  parts.append(f'<h3>{sid}</h3><table><tr><th>方法</th>'+''.join('<th>'+label+'</th>' for _,_,label in keys)+'</tr>')
@@ -50,6 +56,7 @@ for sid in C['scenes']:
   r=data[sid].get(a);parts.append('<div><b>'+a+'</b>')
   if r:
    rel=str(Path(r['videos']['lateral']).relative_to(P));parts.append('<video controls preload="none" src="'+esc(rel)+'"></video>')
+   real=str(Path(r['videos']['trajectory']).relative_to(P));parts.append('<p><a href="'+esc(real)+'">真实轨迹：GT/预测 RGB 与深度</a></p>')
   else:parts.append('<p>等待推理</p>')
   parts.append('</div>')
  parts.append('</div>')

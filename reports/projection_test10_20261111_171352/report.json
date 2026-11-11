@@ -1,0 +1,1663 @@
+{
+  "complete": true,
+  "paired_scenes": [
+    "02b618a34bc12ff9",
+    "15b93cbe9fc5220d",
+    "37c99410741fbca5",
+    "52b89a24cc171c5f",
+    "7794d03533d97905",
+    "8c0ea69b00e2f550",
+    "a8cc9d1e56928758",
+    "c49a14de01d7bd35",
+    "d4bc08cad572effe",
+    "fdd8c2ad35591b60"
+  ],
+  "completed_jobs": 30,
+  "total_jobs": 30,
+  "summary": {
+    "control": {
+      "tgt_rgb_psnr": {
+        "mean": 15.917795051070323,
+        "std": 1.0494371321574631,
+        "median": 15.92918630236974
+      },
+      "tgt_rgb_lpips": {
+        "mean": 0.41269177575906113,
+        "std": 0.06563668486642217,
+        "median": 0.41694942861795425
+      },
+      "tgt_depth_abs_rel_aligned": {
+        "mean": 0.18962633145352203,
+        "std": 0.08337626845711046,
+        "median": 0.22256204870839913
+      },
+      "tgt_depth_delta1": {
+        "mean": 0.7834125382701556,
+        "std": 0.12318191614286743,
+        "median": 0.8012219717105229
+      },
+      "large15_20_psnr": {
+        "mean": 14.718032103696743,
+        "std": 1.4858036133056527,
+        "median": 14.16334285337075
+      },
+      "yaw0_psnr": {
+        "mean": 17.134631031736696,
+        "std": 1.1667256703446378,
+        "median": 16.833939295323013
+      }
+    },
+    "gae": {
+      "tgt_rgb_psnr": {
+        "mean": 18.910237303890007,
+        "std": 1.11657362003932,
+        "median": 19.150637776916383
+      },
+      "tgt_rgb_lpips": {
+        "mean": 0.2919273414214452,
+        "std": 0.0414419116325526,
+        "median": 0.28985128055016196
+      },
+      "tgt_depth_abs_rel_aligned": {
+        "mean": 0.14459700579444568,
+        "std": 0.06124461629435088,
+        "median": 0.1373946304122607
+      },
+      "tgt_depth_delta1": {
+        "mean": 0.8654002913832665,
+        "std": 0.0706144154132813,
+        "median": 0.8770696898301442
+      },
+      "large15_20_psnr": {
+        "mean": 19.144016779857203,
+        "std": 1.1958295425195182,
+        "median": 18.908387052046173
+      },
+      "yaw0_psnr": {
+        "mean": 22.521418412932096,
+        "std": 1.2256286644148813,
+        "median": 22.75145950531017
+      }
+    },
+    "rgb": {
+      "tgt_rgb_psnr": {
+        "mean": 19.182620974072314,
+        "std": 1.0055983476207846,
+        "median": 19.255494283695803
+      },
+      "tgt_rgb_lpips": {
+        "mean": 0.2930655227601528,
+        "std": 0.055968301659754485,
+        "median": 0.28584640224774677
+      },
+      "tgt_depth_abs_rel_aligned": {
+        "mean": 0.14923179337133963,
+        "std": 0.07083935986423365,
+        "median": 0.13030797094106672
+      },
+      "tgt_depth_delta1": {
+        "mean": 0.857351242552201,
+        "std": 0.089764307813418,
+        "median": 0.8936801890532176
+      },
+      "large15_20_psnr": {
+        "mean": 18.99667103790156,
+        "std": 0.918179092209909,
+        "median": 18.977840095589507
+      },
+      "yaw0_psnr": {
+        "mean": 22.315791334318227,
+        "std": 1.302289131351674,
+        "median": 22.460338131143384
+      }
+    }
+  },
+  "per_scene": {
+    "02b618a34bc12ff9": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 15.004983654993772,
+          "tgt_rgb_lpips": 0.41084820628166197,
+          "tgt_depth_abs_rel_aligned": 0.0744374749561151,
+          "tgt_depth_delta1": 0.9363118728001912,
+          "nearest_src_psnr": 15.594916413518527
+        },
+        "yaw": {
+          "yaw0_psnr": 16.42392207936832,
+          "nonzero_psnr": 13.62212524830794,
+          "large15_20_psnr": 12.700401960960722,
+          "per_yaw": [
+            12.852549798953003,
+            12.862892615813504,
+            13.592959923800214,
+            15.137637822522889,
+            16.42392207936832,
+            16.055959004552193,
+            13.388837391745337,
+            12.535200566210346,
+            12.550964862866035
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/control/lateral"
+        },
+        "step": 8200,
+        "scene": "02b618a34bc12ff9",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794388772.4462998
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 18.01075577975539,
+          "tgt_rgb_lpips": 0.312493039170901,
+          "tgt_depth_abs_rel_aligned": 0.06172738621632258,
+          "tgt_depth_delta1": 0.9588041663169861,
+          "nearest_src_psnr": 15.594916413518527
+        },
+        "yaw": {
+          "yaw0_psnr": 19.8007196708357,
+          "nonzero_psnr": 18.457324278692298,
+          "large15_20_psnr": 18.005540259920668,
+          "per_yaw": [
+            18.370862006976434,
+            18.689567656250595,
+            18.493166102967116,
+            19.33332132819175,
+            19.8007196708357,
+            19.446148669866744,
+            18.36379708883009,
+            17.668125092305033,
+            17.293606284150616
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "02b618a34bc12ff9",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794388791.2880356
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 18.253131544929943,
+          "tgt_rgb_lpips": 0.2937141497929891,
+          "tgt_depth_abs_rel_aligned": 0.06003265803058942,
+          "tgt_depth_delta1": 0.9574257771174113,
+          "nearest_src_psnr": 15.594916413518527
+        },
+        "yaw": {
+          "yaw0_psnr": 19.304587386430548,
+          "nonzero_psnr": 18.121291029314758,
+          "large15_20_psnr": 17.415022958008876,
+          "per_yaw": [
+            17.74576699380773,
+            18.003966936525664,
+            18.055197273015978,
+            19.42833453473456,
+            19.304587386430548,
+            20.000879675811632,
+            17.825824918920393,
+            17.048089220287363,
+            16.86226868141475
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/02b618a34bc12ff9/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "02b618a34bc12ff9",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794389216.6742933
+      }
+    },
+    "15b93cbe9fc5220d": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 13.529134957813733,
+          "tgt_rgb_lpips": 0.39630308747291565,
+          "tgt_depth_abs_rel_aligned": 0.12635605583588283,
+          "tgt_depth_delta1": 0.8564444740613302,
+          "nearest_src_psnr": 12.921934355280731
+        },
+        "yaw": {
+          "yaw0_psnr": 15.566431773334626,
+          "nonzero_psnr": 14.756668981210266,
+          "large15_20_psnr": 13.969792125315863,
+          "per_yaw": [
+            14.08833380411491,
+            14.173155785828431,
+            15.487986418933591,
+            15.362192733254199,
+            15.566431773334626,
+            17.146127121180555,
+            14.177877075050343,
+            15.015609872358935,
+            12.602069038961172
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/control/lateral"
+        },
+        "step": 8200,
+        "scene": "15b93cbe9fc5220d",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794389008.9434297
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 16.861291388318076,
+          "tgt_rgb_lpips": 0.2559269408384959,
+          "tgt_depth_abs_rel_aligned": 0.10379175742467245,
+          "tgt_depth_delta1": 0.901980980237325,
+          "nearest_src_psnr": 12.921934355280731
+        },
+        "yaw": {
+          "yaw0_psnr": 22.790170959706533,
+          "nonzero_psnr": 18.246662535267028,
+          "large15_20_psnr": 17.689921099762444,
+          "per_yaw": [
+            17.164216418953345,
+            17.26887955907647,
+            18.073816814582205,
+            19.775513740096784,
+            22.790170959706533,
+            17.586117745651958,
+            19.77816758275552,
+            18.512065214796927,
+            17.81452320622304
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "15b93cbe9fc5220d",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794389159.2926779
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 17.785552404048758,
+          "tgt_rgb_lpips": 0.248300572236379,
+          "tgt_depth_abs_rel_aligned": 0.0968364750345548,
+          "tgt_depth_delta1": 0.9223355968793233,
+          "nearest_src_psnr": 12.921934355280731
+        },
+        "yaw": {
+          "yaw0_psnr": 23.70967783916668,
+          "nonzero_psnr": 19.166449600238977,
+          "large15_20_psnr": 18.423622028516448,
+          "per_yaw": [
+            17.745318828343507,
+            18.37757269253492,
+            18.519695975924847,
+            20.38964521596034,
+            23.70967783916668,
+            20.490001435119307,
+            20.237766060841544,
+            19.476624548681528,
+            18.094972044505834
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/15b93cbe9fc5220d/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "15b93cbe9fc5220d",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794389767.2287407
+      }
+    },
+    "37c99410741fbca5": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 17.3671592974066,
+          "tgt_rgb_lpips": 0.3366475145022074,
+          "tgt_depth_abs_rel_aligned": 0.07420863459507625,
+          "tgt_depth_delta1": 0.9308778564135234,
+          "nearest_src_psnr": 16.217499721870567
+        },
+        "yaw": {
+          "yaw0_psnr": 19.09239939938916,
+          "nonzero_psnr": 16.277807611432557,
+          "large15_20_psnr": 15.131584337115235,
+          "per_yaw": [
+            16.55101387870174,
+            18.51396180860588,
+            19.357085170931605,
+            18.236080870672023,
+            19.09239939938916,
+            18.529365378149212,
+            13.57359212324669,
+            12.975466463808168,
+            12.48589519734515
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/control/lateral"
+        },
+        "step": 8200,
+        "scene": "37c99410741fbca5",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794389386.0443592
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 20.665630835582466,
+          "tgt_rgb_lpips": 0.233333957195282,
+          "tgt_depth_abs_rel_aligned": 0.06848663315176964,
+          "tgt_depth_delta1": 0.9458409388860066,
+          "nearest_src_psnr": 16.217499721870567
+        },
+        "yaw": {
+          "yaw0_psnr": 23.338419455063715,
+          "nonzero_psnr": 20.907153120963343,
+          "large15_20_psnr": 20.592240715438905,
+          "per_yaw": [
+            20.44164644884865,
+            21.016709492840143,
+            21.766563995870655,
+            21.090892441373718,
+            23.338419455063715,
+            21.789630768050657,
+            20.24117490065608,
+            20.539943441678727,
+            20.370663478388096
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "37c99410741fbca5",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794389596.366699
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 21.074634869485458,
+          "tgt_rgb_lpips": 0.22975483884414036,
+          "tgt_depth_abs_rel_aligned": 0.07504438844819863,
+          "tgt_depth_delta1": 0.9279292106628418,
+          "nearest_src_psnr": 16.217499721870567
+        },
+        "yaw": {
+          "yaw0_psnr": 23.121693943847905,
+          "nonzero_psnr": 20.684453526164766,
+          "large15_20_psnr": 19.95551562073556,
+          "per_yaw": [
+            20.131531476507316,
+            21.350492516195562,
+            22.290495724784336,
+            21.167758691611276,
+            23.121693943847905,
+            21.889991525424534,
+            20.305319784555746,
+            19.775086124515198,
+            18.564952365724164
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/37c99410741fbca5/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "37c99410741fbca5",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794390272.990432
+      }
+    },
+    "52b89a24cc171c5f": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 16.11918732053849,
+          "tgt_rgb_lpips": 0.42305065095424654,
+          "tgt_depth_abs_rel_aligned": 0.2094459702571233,
+          "tgt_depth_delta1": 0.7015702376763026,
+          "nearest_src_psnr": 14.631346822696948
+        },
+        "yaw": {
+          "yaw0_psnr": 17.63638287215616,
+          "nonzero_psnr": 16.39249469781938,
+          "large15_20_psnr": 15.706446350831046,
+          "per_yaw": [
+            16.208551603135703,
+            17.57154492179827,
+            17.290655747869884,
+            17.89773541705127,
+            17.63638287215616,
+            18.020683189132686,
+            15.105097825177022,
+            14.76112629025442,
+            14.284562588135794
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/control/lateral"
+        },
+        "step": 8200,
+        "scene": "52b89a24cc171c5f",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794389659.4120922
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.174176039675093,
+          "tgt_rgb_lpips": 0.2865314255158106,
+          "tgt_depth_abs_rel_aligned": 0.12642738868792852,
+          "tgt_depth_delta1": 0.844727897644043,
+          "nearest_src_psnr": 14.631346822696948
+        },
+        "yaw": {
+          "yaw0_psnr": 21.034863376295824,
+          "nonzero_psnr": 19.660002627380784,
+          "large15_20_psnr": 18.974579414961852,
+          "per_yaw": [
+            19.51670204841161,
+            20.828623112069337,
+            20.12667046558638,
+            20.767929204432253,
+            21.034863376295824,
+            20.650072238287393,
+            19.837031450892862,
+            17.935376396117825,
+            17.61761610324863
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "52b89a24cc171c5f",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794389983.6510615
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.385794371964117,
+          "tgt_rgb_lpips": 0.2804320047299067,
+          "tgt_depth_abs_rel_aligned": 0.12904882033665974,
+          "tgt_depth_delta1": 0.8437499985098839,
+          "nearest_src_psnr": 14.631346822696948
+        },
+        "yaw": {
+          "yaw0_psnr": 21.464811961813083,
+          "nonzero_psnr": 19.99673394302858,
+          "large15_20_psnr": 19.028773974941345,
+          "per_yaw": [
+            18.792224337676352,
+            20.43078569083665,
+            20.36911584527833,
+            21.479952068215322,
+            21.464811961813083,
+            21.8119041773408,
+            20.197803553628788,
+            18.588460850175313,
+            18.303625021077064
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/52b89a24cc171c5f/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "52b89a24cc171c5f",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794390138.7333972
+      }
+    },
+    "7794d03533d97905": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 15.735974367025364,
+          "tgt_rgb_lpips": 0.4386265218257904,
+          "tgt_depth_abs_rel_aligned": 0.23567812715967495,
+          "tgt_depth_delta1": 0.7531515061855316,
+          "nearest_src_psnr": 15.853867048355058
+        },
+        "yaw": {
+          "yaw0_psnr": 16.357327459723518,
+          "nonzero_psnr": 14.977089245621606,
+          "large15_20_psnr": 13.763697341881745,
+          "per_yaw": [
+            10.652809967505505,
+            12.450090238388043,
+            15.326226781907922,
+            15.114500704601534,
+            16.357327459723518,
+            17.509626706792044,
+            16.811570404144366,
+            16.446510682657646,
+            15.505378478975784
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/control/lateral"
+        },
+        "step": 8200,
+        "scene": "7794d03533d97905",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794389902.2959342
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.84519730252488,
+          "tgt_rgb_lpips": 0.3076411962509155,
+          "tgt_depth_abs_rel_aligned": 0.21005713467796644,
+          "tgt_depth_delta1": 0.7926558484633763,
+          "nearest_src_psnr": 15.853867048355058
+        },
+        "yaw": {
+          "yaw0_psnr": 23.64586884448739,
+          "nonzero_psnr": 20.246280133383976,
+          "large15_20_psnr": 19.43731233808955,
+          "per_yaw": [
+            19.457755013081304,
+            20.3807548057622,
+            20.056954082039432,
+            21.604792042940897,
+            23.64586884448739,
+            21.39671167828204,
+            21.162533911451263,
+            18.906443412484705,
+            19.00429612103
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "7794d03533d97905",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794390359.2556813
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 20.31149681113906,
+          "tgt_rgb_lpips": 0.29126079976558683,
+          "tgt_depth_abs_rel_aligned": 0.219051477064689,
+          "tgt_depth_delta1": 0.8131474653879801,
+          "nearest_src_psnr": 15.853867048355058
+        },
+        "yaw": {
+          "yaw0_psnr": 24.23331160512276,
+          "nonzero_psnr": 20.776935155037037,
+          "large15_20_psnr": 20.050689172910744,
+          "per_yaw": [
+            19.988210701145835,
+            20.569190897330696,
+            20.766422159424817,
+            21.36020567149312,
+            24.23331160512276,
+            23.34211084479147,
+            20.543985872943917,
+            20.238144161482026,
+            19.407210931684425
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/7794d03533d97905/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "7794d03533d97905",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794390657.9240608
+      }
+    },
+    "8c0ea69b00e2f550": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 16.98064076540177,
+          "tgt_rgb_lpips": 0.3634459445873896,
+          "tgt_depth_abs_rel_aligned": 0.2524517794450124,
+          "tgt_depth_delta1": 0.8492924372355143,
+          "nearest_src_psnr": 15.061985213543418
+        },
+        "yaw": {
+          "yaw0_psnr": 16.414122651209087,
+          "nonzero_psnr": 15.053023320434772,
+          "large15_20_psnr": 14.215745854239477,
+          "per_yaw": [
+            13.373289048559329,
+            14.582200676778916,
+            16.613771658895455,
+            15.712864206682362,
+            16.414122651209087,
+            16.017430608959074,
+            15.21713667198338,
+            15.08933865533809,
+            13.818155036281576
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/control/lateral"
+        },
+        "step": 8200,
+        "scene": "8c0ea69b00e2f550",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794390800.296692
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.435765959715216,
+          "tgt_rgb_lpips": 0.2651613295078278,
+          "tgt_depth_abs_rel_aligned": 0.20167767082651455,
+          "tgt_depth_delta1": 0.8920781970024109,
+          "nearest_src_psnr": 15.061985213543418
+        },
+        "yaw": {
+          "yaw0_psnr": 22.683748417967866,
+          "nonzero_psnr": 19.693726404649674,
+          "large15_20_psnr": 18.94150812251263,
+          "per_yaw": [
+            19.080687212943015,
+            19.94769426910981,
+            20.01112770289957,
+            21.111680534002744,
+            22.683748417967866,
+            21.348441118791914,
+            19.312529391452625,
+            18.672403468519146,
+            18.065247539478545
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "8c0ea69b00e2f550",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794390753.5669303
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.71390898607148,
+          "tgt_rgb_lpips": 0.26950544615586597,
+          "tgt_depth_abs_rel_aligned": 0.13156712154547373,
+          "tgt_depth_delta1": 0.9109226703643799,
+          "nearest_src_psnr": 15.061985213543418
+        },
+        "yaw": {
+          "yaw0_psnr": 21.931242716882945,
+          "nonzero_psnr": 19.743158016851183,
+          "large15_20_psnr": 19.19059557172684,
+          "per_yaw": [
+            19.718277087643628,
+            19.94997695636274,
+            19.979031910969702,
+            21.498699297173292,
+            21.931242716882945,
+            20.295084183846946,
+            19.410066455912183,
+            18.72553192042372,
+            18.368596322477263
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/8c0ea69b00e2f550/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "8c0ea69b00e2f550",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794390965.5430026
+      }
+    },
+    "a8cc9d1e56928758": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 15.91537604823102,
+          "tgt_rgb_lpips": 0.42798512876033784,
+          "tgt_depth_abs_rel_aligned": 0.26158404896656673,
+          "tgt_depth_delta1": 0.7304332494735718,
+          "nearest_src_psnr": 15.033075221000475
+        },
+        "yaw": {
+          "yaw0_psnr": 16.06125595490044,
+          "nonzero_psnr": 14.527248984154436,
+          "large15_20_psnr": 14.110939852502023,
+          "per_yaw": [
+            15.083926025779395,
+            14.006001161383821,
+            13.994505905356274,
+            15.457241581133399,
+            16.06125595490044,
+            15.988028433841668,
+            14.334456542896056,
+            13.685822706801876,
+            13.668009516043
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/control/lateral"
+        },
+        "step": 8200,
+        "scene": "a8cc9d1e56928758",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794391138.620387
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.127099514157674,
+          "tgt_rgb_lpips": 0.3149188160896301,
+          "tgt_depth_abs_rel_aligned": 0.18806293681263925,
+          "tgt_depth_delta1": 0.8620611826578776,
+          "nearest_src_psnr": 15.033075221000475
+        },
+        "yaw": {
+          "yaw0_psnr": 22.761518866473253,
+          "nonzero_psnr": 19.40472606592057,
+          "large15_20_psnr": 18.38703688333865,
+          "per_yaw": [
+            19.91634537863476,
+            19.30534882623014,
+            20.374364801402308,
+            21.61037586759255,
+            22.761518866473253,
+            21.311362616824134,
+            18.393557708190965,
+            17.476579818789034,
+            16.84987350970066
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "a8cc9d1e56928758",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794391307.448943
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.016960592867875,
+          "tgt_rgb_lpips": 0.31026555796464284,
+          "tgt_depth_abs_rel_aligned": 0.1998183955748876,
+          "tgt_depth_delta1": 0.8764377077420552,
+          "nearest_src_psnr": 15.033075221000475
+        },
+        "yaw": {
+          "yaw0_psnr": 21.680360948333238,
+          "nonzero_psnr": 18.73232709235493,
+          "large15_20_psnr": 17.82051984627659,
+          "per_yaw": [
+            19.88437543881156,
+            19.61035309664597,
+            20.060663046166873,
+            21.52502051096913,
+            21.680360948333238,
+            20.29293361382683,
+            16.697920182770254,
+            16.054154282623024,
+            15.733196567025807
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/a8cc9d1e56928758/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "a8cc9d1e56928758",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794391808.97629
+      }
+    },
+    "c49a14de01d7bd35": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 15.94299655650846,
+          "tgt_rgb_lpips": 0.47508761286735535,
+          "tgt_depth_abs_rel_aligned": 0.2646047537525495,
+          "tgt_depth_delta1": 0.5769885818163554,
+          "nearest_src_psnr": 15.720310998971232
+        },
+        "yaw": {
+          "yaw0_psnr": 17.243956511277705,
+          "nonzero_psnr": 16.129749029309835,
+          "large15_20_psnr": 15.364281711167422,
+          "per_yaw": [
+            13.590560658339752,
+            15.555493172458217,
+            16.913529893984173,
+            18.32715309663907,
+            17.243956511277705,
+            16.215805943082017,
+            16.124376456103725,
+            16.70928466381434,
+            15.601788350057378
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/control/lateral"
+        },
+        "step": 8200,
+        "scene": "c49a14de01d7bd35",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794391473.691095
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.746169257929193,
+          "tgt_rgb_lpips": 0.29317113558451335,
+          "tgt_depth_abs_rel_aligned": 0.14836187213659285,
+          "tgt_depth_delta1": 0.8316725492477417,
+          "nearest_src_psnr": 15.720310998971232
+        },
+        "yaw": {
+          "yaw0_psnr": 22.741400144147086,
+          "nonzero_psnr": 19.070680539972216,
+          "large15_20_psnr": 18.875265981579712,
+          "per_yaw": [
+            18.766476962274737,
+            18.767093650699703,
+            19.11884919722394,
+            20.158945009599233,
+            22.741400144147086,
+            19.27593088954795,
+            18.510655297087744,
+            19.145996230773214,
+            18.82149708257119
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "c49a14de01d7bd35",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794391761.771027
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.125194195427493,
+          "tgt_rgb_lpips": 0.3231331378221512,
+          "tgt_depth_abs_rel_aligned": 0.20841183960437776,
+          "tgt_depth_delta1": 0.7244929373264313,
+          "nearest_src_psnr": 15.720310998971232
+        },
+        "yaw": {
+          "yaw0_psnr": 22.261606914563576,
+          "nonzero_psnr": 19.484033781500464,
+          "large15_20_psnr": 18.92690621623767,
+          "per_yaw": [
+            18.60904907906457,
+            19.011405877706164,
+            19.48118852542804,
+            20.88885212589783,
+            22.261606914563576,
+            19.966768154478146,
+            19.827836581249038,
+            19.1117914697534,
+            18.97537843842654
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/c49a14de01d7bd35/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "c49a14de01d7bd35",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794392052.1272867
+      }
+    },
+    "d4bc08cad572effe": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 15.6238772147195,
+          "tgt_rgb_lpips": 0.5484130601088206,
+          "tgt_depth_abs_rel_aligned": 0.30242190112670264,
+          "tgt_depth_delta1": 0.6052849650382995,
+          "nearest_src_psnr": 16.18395545877131
+        },
+        "yaw": {
+          "yaw0_psnr": 19.190146739383923,
+          "nonzero_psnr": 18.665072161329345,
+          "large15_20_psnr": 18.3978414857113,
+          "per_yaw": [
+            18.59490906705644,
+            18.92216640022359,
+            20.24835751989979,
+            18.659718756677645,
+            19.190146739383923,
+            18.59572921061186,
+            18.225405860600265,
+            17.84940776098383,
+            18.224882714581337
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/control/lateral"
+        },
+        "step": 8200,
+        "scene": "d4bc08cad572effe",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794392157.9639192
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 17.357195802316312,
+          "tgt_rgb_lpips": 0.38949006994565327,
+          "tgt_depth_abs_rel_aligned": 0.24693874617417652,
+          "tgt_depth_delta1": 0.7119220832983653,
+          "nearest_src_psnr": 16.18395545877131
+        },
+        "yaw": {
+          "yaw0_psnr": 24.28769406798784,
+          "nonzero_psnr": 22.224008184020583,
+          "large15_20_psnr": 21.92108060513158,
+          "per_yaw": [
+            22.753191552924484,
+            22.813831261742024,
+            23.290151745071135,
+            22.544634434162173,
+            24.28769406798784,
+            22.228979499810407,
+            22.043977372594664,
+            20.677339197226125,
+            21.439960408633677
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "d4bc08cad572effe",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794392348.104859
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 17.754752556499064,
+          "tgt_rgb_lpips": 0.438520281513532,
+          "tgt_depth_abs_rel_aligned": 0.28519771645466485,
+          "tgt_depth_delta1": 0.6732077260812124,
+          "nearest_src_psnr": 16.18395545877131
+        },
+        "yaw": {
+          "yaw0_psnr": 22.79155067929831,
+          "nonzero_psnr": 20.89405100373827,
+          "large15_20_psnr": 20.43443369432517,
+          "per_yaw": [
+            21.930320922035975,
+            22.73832067071894,
+            23.692122488717725,
+            22.181455035263017,
+            22.79155067929831,
+            21.348183230154486,
+            18.19291249847026,
+            18.376107451923723,
+            18.692985732622034
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/d4bc08cad572effe/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "d4bc08cad572effe",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794392534.2828221
+      }
+    },
+    "fdd8c2ad35591b60": {
+      "control": {
+        "trajectory": {
+          "tgt_rgb_psnr": 16.958620328064498,
+          "tgt_rgb_lpips": 0.3065100302298864,
+          "tgt_depth_abs_rel_aligned": 0.09507456844051679,
+          "tgt_depth_delta1": 0.8937702020009358,
+          "nearest_src_psnr": 20.47541628555632
+        },
+        "yaw": {
+          "yaw0_psnr": 17.360364876624036,
+          "nonzero_psnr": 14.522268374235797,
+          "large15_20_psnr": 13.8195900172426,
+          "per_yaw": [
+            13.257430847929859,
+            13.269758127452079,
+            14.309180118977045,
+            16.134592934041454,
+            17.360364876624036,
+            16.30643539321339,
+            14.149578478684077,
+            14.513950939392057,
+            14.237220154196411
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/control/lateral/lateral_probe_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/control/trajectory/video_span_ablation_c2w_fresh_20261107_230730_control_bs12_step8200.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/control/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/control/lateral"
+        },
+        "step": 8200,
+        "scene": "fdd8c2ad35591b60",
+        "projection_mode": "control",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794392656.124529
+      },
+      "gae": {
+        "trajectory": {
+          "tgt_rgb_psnr": 18.879091158925778,
+          "tgt_rgb_lpips": 0.26060550411542255,
+          "tgt_depth_abs_rel_aligned": 0.09043853183587393,
+          "tgt_depth_delta1": 0.9122590700785319,
+          "nearest_src_psnr": 20.47541628555632
+        },
+        "yaw": {
+          "yaw0_psnr": 22.129780326355753,
+          "nonzero_psnr": 18.849481433632388,
+          "large15_20_psnr": 18.615682377836077,
+          "per_yaw": [
+            18.342246516605098,
+            18.85154692855157,
+            19.145805828447035,
+            19.361690562140385,
+            22.129780326355753,
+            20.027971744287587,
+            17.79765382283979,
+            18.58280519000266,
+            18.686130876184976
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/gae/lateral/lateral_probe_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/gae/trajectory/video_projection_gae_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/gae/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/gae/lateral"
+        },
+        "step": 6000,
+        "scene": "fdd8c2ad35591b60",
+        "projection_mode": "gae",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794392876.055753
+      },
+      "rgb": {
+        "trajectory": {
+          "tgt_rgb_psnr": 19.404783408289923,
+          "tgt_rgb_lpips": 0.2457684387763341,
+          "tgt_depth_abs_rel_aligned": 0.08730904161930084,
+          "tgt_depth_delta1": 0.9238633354504903,
+          "nearest_src_psnr": 20.47541628555632
+        },
+        "yaw": {
+          "yaw0_psnr": 22.659069347723193,
+          "nonzero_psnr": 19.0681895850434,
+          "large15_20_psnr": 18.720631295336343,
+          "per_yaw": [
+            18.356580733466387,
+            19.033079215579654,
+            19.174314463010344,
+            19.36031272868247,
+            22.659069347723193,
+            20.7801279563273,
+            18.34823635098173,
+            18.933435106848936,
+            18.55943012545039
+          ]
+        },
+        "videos": {
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/rgb/lateral/lateral_probe_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4",
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/rgb/trajectory/video_projection_rgb_3npu_resume_3card_20261110_110818_step6000.mp4"
+        },
+        "outputs": {
+          "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/rgb/trajectory",
+          "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/results/fdd8c2ad35591b60/rgb/lateral"
+        },
+        "step": 6000,
+        "scene": "fdd8c2ad35591b60",
+        "projection_mode": "rgb",
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py",
+        "completed_at": 1794393175.0135477
+      }
+    }
+  },
+  "protocol": {
+    "base": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae",
+    "python": "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+    "projection_code": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code",
+    "manifest": "/mnt/sfs_turbo/t00845730/re10k/manifest_test_c2w_v1.jsonl",
+    "scenes": [
+      "02b618a34bc12ff9",
+      "15b93cbe9fc5220d",
+      "37c99410741fbca5",
+      "52b89a24cc171c5f",
+      "7794d03533d97905",
+      "8c0ea69b00e2f550",
+      "a8cc9d1e56928758",
+      "c49a14de01d7bd35",
+      "d4bc08cad572effe",
+      "fdd8c2ad35591b60"
+    ],
+    "scene_selection": "10 evenly spaced IDs from sorted eligible test scenes; no quality-based filtering; excludes previously inspected fe2 scene",
+    "scene_protocol": {
+      "02b618a34bc12ff9": {
+        "source_ids": [
+          "00000000",
+          "00000035",
+          "00000075",
+          "00000110",
+          "00000145",
+          "00000185"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000025",
+          "00000045",
+          "00000060",
+          "00000085",
+          "00000105",
+          "00000125",
+          "00000140",
+          "00000165",
+          "00000190",
+          "00000205",
+          "00000220",
+          "00000240",
+          "00000260",
+          "00000275"
+        ],
+        "manifest_views": 56,
+        "cached_views": 16
+      },
+      "15b93cbe9fc5220d": {
+        "source_ids": [
+          "00000000",
+          "00000015",
+          "00000035",
+          "00000050",
+          "00000065",
+          "00000085"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000010",
+          "00000025",
+          "00000030",
+          "00000040",
+          "00000055",
+          "00000060",
+          "00000075",
+          "00000080",
+          "00000090",
+          "00000100",
+          "00000105",
+          "00000110",
+          "00000120",
+          "00000125"
+        ],
+        "manifest_views": 26,
+        "cached_views": 16
+      },
+      "37c99410741fbca5": {
+        "source_ids": [
+          "00000000",
+          "00000015",
+          "00000030",
+          "00000045",
+          "00000060",
+          "00000075"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000010",
+          "00000020",
+          "00000035",
+          "00000040",
+          "00000050",
+          "00000055",
+          "00000065",
+          "00000080",
+          "00000085",
+          "00000090",
+          "00000095",
+          "00000105",
+          "00000110",
+          "00000115"
+        ],
+        "manifest_views": 24,
+        "cached_views": 16
+      },
+      "52b89a24cc171c5f": {
+        "source_ids": [
+          "00000000",
+          "00000025",
+          "00000050",
+          "00000080",
+          "00000105",
+          "00000130"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000015",
+          "00000035",
+          "00000045",
+          "00000060",
+          "00000075",
+          "00000090",
+          "00000100",
+          "00000120",
+          "00000135",
+          "00000150",
+          "00000160",
+          "00000170",
+          "00000185",
+          "00000195"
+        ],
+        "manifest_views": 40,
+        "cached_views": 16
+      },
+      "7794d03533d97905": {
+        "source_ids": [
+          "00000000",
+          "00000015",
+          "00000035",
+          "00000050",
+          "00000070",
+          "00000085"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000010",
+          "00000025",
+          "00000030",
+          "00000045",
+          "00000055",
+          "00000065",
+          "00000075",
+          "00000080",
+          "00000095",
+          "00000100",
+          "00000110",
+          "00000115",
+          "00000125",
+          "00000130"
+        ],
+        "manifest_views": 27,
+        "cached_views": 16
+      },
+      "8c0ea69b00e2f550": {
+        "source_ids": [
+          "00000000",
+          "00000015",
+          "00000035",
+          "00000050",
+          "00000065",
+          "00000085"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000010",
+          "00000025",
+          "00000030",
+          "00000040",
+          "00000055",
+          "00000060",
+          "00000075",
+          "00000080",
+          "00000090",
+          "00000100",
+          "00000105",
+          "00000110",
+          "00000120",
+          "00000125"
+        ],
+        "manifest_views": 26,
+        "cached_views": 16
+      },
+      "a8cc9d1e56928758": {
+        "source_ids": [
+          "00000000",
+          "00000035",
+          "00000075",
+          "00000110",
+          "00000145",
+          "00000185"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000025",
+          "00000045",
+          "00000060",
+          "00000085",
+          "00000105",
+          "00000125",
+          "00000140",
+          "00000165",
+          "00000190",
+          "00000205",
+          "00000220",
+          "00000240",
+          "00000260",
+          "00000275"
+        ],
+        "manifest_views": 56,
+        "cached_views": 16
+      },
+      "c49a14de01d7bd35": {
+        "source_ids": [
+          "00000000",
+          "00000035",
+          "00000075",
+          "00000110",
+          "00000145",
+          "00000185"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000025",
+          "00000045",
+          "00000060",
+          "00000085",
+          "00000105",
+          "00000125",
+          "00000140",
+          "00000165",
+          "00000190",
+          "00000205",
+          "00000220",
+          "00000240",
+          "00000260",
+          "00000275"
+        ],
+        "manifest_views": 56,
+        "cached_views": 16
+      },
+      "d4bc08cad572effe": {
+        "source_ids": [
+          "00000000",
+          "00000035",
+          "00000075",
+          "00000110",
+          "00000145",
+          "00000185"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000025",
+          "00000045",
+          "00000060",
+          "00000085",
+          "00000105",
+          "00000125",
+          "00000140",
+          "00000165",
+          "00000190",
+          "00000205",
+          "00000220",
+          "00000240",
+          "00000260",
+          "00000275"
+        ],
+        "manifest_views": 56,
+        "cached_views": 16
+      },
+      "fdd8c2ad35591b60": {
+        "source_ids": [
+          "00000000",
+          "00000015",
+          "00000030",
+          "00000045",
+          "00000060",
+          "00000075"
+        ],
+        "target_ids": [
+          "00000005",
+          "00000010",
+          "00000020",
+          "00000035",
+          "00000040",
+          "00000050",
+          "00000055",
+          "00000065",
+          "00000080",
+          "00000085",
+          "00000090",
+          "00000095",
+          "00000105",
+          "00000110",
+          "00000115"
+        ],
+        "manifest_views": 24,
+        "cached_views": 16
+      }
+    },
+    "arms": {
+      "control": {
+        "run_dir": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_c2w_fresh_20261107_230730_control_bs12",
+        "step": 8200,
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/control/checkpoint-step-8200",
+        "weights_bytes": 3191748040,
+        "weights_header_sha256": "85c88e699fcf3b76793736a2e815726de7a4455a278d483cf4fe99f7378c8af9"
+      },
+      "gae": {
+        "run_dir": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/projection_gae_3npu_resume_3card_20261110_110818",
+        "step": 6000,
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/gae/checkpoint-step-6000",
+        "weights_bytes": 3191956808,
+        "weights_header_sha256": "a2a6935adddbda11598edddf1636ca5713c9c85197f8f3f22798541813a83cbd"
+      },
+      "rgb": {
+        "run_dir": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/projection_rgb_3npu_resume_3card_20261110_110818",
+        "step": 6000,
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_test10_20261111_171352/pins/rgb/checkpoint-step-6000",
+        "weights_bytes": 3192023888,
+        "weights_header_sha256": "3af96473a9823bf54dd6bc7c12bdc89294f7771b8168201ee32c87ec7b57a91f"
+      }
+    },
+    "seed": 1234,
+    "sampling_steps": 25,
+    "num_source_views": 6,
+    "num_target_views_per_chunk": 3,
+    "target_frames_per_trajectory": 15,
+    "synthetic_frames": 15,
+    "depth_reference": "estimated DA3 depths, not sensor GT; per-frame median scale aligned",
+    "card": 2,
+    "workers": 2,
+    "card_gate": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/npu7_projection_evaluation.lock",
+    "started": 1794388437.4455414,
+    "comparison_limitations": [
+      "Unequal training steps and training histories",
+      "Projection runs camera_span_prob=.5, control=0",
+      "Training effective global batches differ; observational checkpoint comparison, not isolated causal ablation"
+    ],
+    "cards": {
+      "control": 2,
+      "gae": 3,
+      "rgb": 2
+    },
+    "hardware_note": "NPU7 reserved by user. Other workloads later occupied NPU4/5. Remaining batch uses NPU2/3, preserving and retrying failed GPU4 probes."
+  }
+}

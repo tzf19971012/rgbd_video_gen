@@ -28,5 +28,5 @@ for sid in C['scenes']:
   for kind,name in [('lateral','lateral_probe'),('trajectory','traj')]:
    target=run/f'{name}_step{step}_test10'/sid;target.parent.mkdir(exist_ok=True)
    if not target.exists():target.symlink_to(p/kind,target_is_directory=True)
-result=dict(passed=True,scenes=10,jobs=30,videos=60,all_source_poses_match=True,all_real_target_ids_match=True,all_copy_baselines_match=True,all_videos_fully_decoded=True,checked_at=time.time(),videos=checks)
+result=dict(passed=True,scenes=10,jobs=30,video_count=60,all_source_poses_match=True,all_real_target_ids_match=True,all_copy_baselines_match=True,all_videos_fully_decoded=True,checked_at=time.time(),videos=checks)
 (P/'verification.json').write_text(json.dumps(result,indent=2));print('VERIFIED 10 scenes /30 jobs /60 videos')

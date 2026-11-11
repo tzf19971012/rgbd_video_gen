@@ -1,0 +1,793 @@
+{
+  "passed": true,
+  "scenes": 10,
+  "jobs": 30,
+  "video_count": 60,
+  "all_source_poses_match": true,
+  "all_real_target_ids_match": true,
+  "all_copy_baselines_match": true,
+  "all_videos_fully_decoded": true,
+  "checked_at": 1794393298.8370397,
+  "videos": [
+    {
+      "scene": "02b618a34bc12ff9",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 1323124,
+      "sha256": "cec6687f2877e92c20795433a954a0cc893142aaf560e7b6dc487b15391255a1"
+    },
+    {
+      "scene": "02b618a34bc12ff9",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1677922,
+      "sha256": "0db1a73f4ffa7aab5c8ae83a8b74656369d45f0fe7992ab87fe27a9feab23406"
+    },
+    {
+      "scene": "02b618a34bc12ff9",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 1364256,
+      "sha256": "6a96383c14cd2406e858bf11685215fe07c5fe82e164c757ad15bafdd5503490"
+    },
+    {
+      "scene": "02b618a34bc12ff9",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1827895,
+      "sha256": "41c10df4689ed6ba1be42d23bb7968728d9a25a90bdf0d2cdb6c3091d7522c0c"
+    },
+    {
+      "scene": "02b618a34bc12ff9",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 1322236,
+      "sha256": "797887ade3b78a31d47158a86670a0cc34a3e576c1e85d4a51f50ffae8ac090e"
+    },
+    {
+      "scene": "02b618a34bc12ff9",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1813389,
+      "sha256": "2357f759543e09db5d1755b9d3ea3571ffdf4ba76175d82f8234daf94fc31476"
+    },
+    {
+      "scene": "15b93cbe9fc5220d",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 891463,
+      "sha256": "db359fa291dd5ae5e8a49869be599552eb8e9525264eb04711d8c7acc3bcce37"
+    },
+    {
+      "scene": "15b93cbe9fc5220d",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1222493,
+      "sha256": "c4914012b71cd50adda37dc1efae82af1c0e5321d2ae2ab90cb7f66f47cd5432"
+    },
+    {
+      "scene": "15b93cbe9fc5220d",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 811400,
+      "sha256": "8a4a94a1a2bd912c512331a1c239e2d18d837fb37a9ce883320b64e6dcf4d8ef"
+    },
+    {
+      "scene": "15b93cbe9fc5220d",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1248764,
+      "sha256": "216d21f0d1a2d18ec91ea08759f18784bd7496401a0671a781fcbde3687b5d13"
+    },
+    {
+      "scene": "15b93cbe9fc5220d",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 796809,
+      "sha256": "5e0996c9663aef04645cb12b515b42908b30298fb5de16f3e400015f627571c6"
+    },
+    {
+      "scene": "15b93cbe9fc5220d",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1252966,
+      "sha256": "fb5ad60c5ce67beffd91bd182e33b40b552a21f85fd1061b9197c57e83702f92"
+    },
+    {
+      "scene": "37c99410741fbca5",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 879032,
+      "sha256": "1a38907836bf2e5f7378251553e7629dee1504275cb1e9f63ffb5766ec126c18"
+    },
+    {
+      "scene": "37c99410741fbca5",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1188698,
+      "sha256": "fbdda459cdacda97020071f8031cc8fd5e22429adb11eea925c2c9232ca34371"
+    },
+    {
+      "scene": "37c99410741fbca5",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 838756,
+      "sha256": "f7db0db567d9e6578f9ec9f64bdee89a21f15bae87bb01be69ab82dd839da820"
+    },
+    {
+      "scene": "37c99410741fbca5",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1226990,
+      "sha256": "86016654413fca46e9c62236a8563ccc9ecb0965d55535227cef764e5a8ec3bf"
+    },
+    {
+      "scene": "37c99410741fbca5",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 860417,
+      "sha256": "1e5a4399a0fe966f34a3ab1d1b203fafb0aacb40472fbb27eb318978ef825d0d"
+    },
+    {
+      "scene": "37c99410741fbca5",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1216047,
+      "sha256": "96e649060e4301af24d463aa2a5a1c1f478015e856a2e3dcc14f071fa11babf0"
+    },
+    {
+      "scene": "52b89a24cc171c5f",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 951467,
+      "sha256": "0373d569f18812937cbb08020ad0d630bc818f588c96a38e229c7cf0dbe67630"
+    },
+    {
+      "scene": "52b89a24cc171c5f",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1245342,
+      "sha256": "1d931b15fd938b818c16ec84fecb5171176761e1f48c86f2b5bbe110a78b261c"
+    },
+    {
+      "scene": "52b89a24cc171c5f",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 858134,
+      "sha256": "98a17d3b84f23c8cc0508bab464af7925510a68c8d7cd5ddf91352207483306d"
+    },
+    {
+      "scene": "52b89a24cc171c5f",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1262959,
+      "sha256": "b6fa23a8b97cacc6e6af75640e653456cb5527199d60747987dd21320014c5de"
+    },
+    {
+      "scene": "52b89a24cc171c5f",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 858684,
+      "sha256": "7f1edb2d79b4ee937412f1de3e90058e5938ddb203a17b908a1ae1a07ae36a5f"
+    },
+    {
+      "scene": "52b89a24cc171c5f",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1257799,
+      "sha256": "3987fdefa17b53c4414e2c769641e02f14b0c4dd234f4a3a7a8106b96450db42"
+    },
+    {
+      "scene": "7794d03533d97905",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 723705,
+      "sha256": "3419b12f0aacad4f2ad67faf7451d3ef626d1d02d0bcfb19cd66e9655bb91ca2"
+    },
+    {
+      "scene": "7794d03533d97905",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1038479,
+      "sha256": "e72ae0d48ec0faab42e440e95052a79f06bed7da9b235d030e920dd112339329"
+    },
+    {
+      "scene": "7794d03533d97905",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 768222,
+      "sha256": "4ed0bf2e8e5289bc88aa2443037f733e2dd657174331799644d75e37bdad0b38"
+    },
+    {
+      "scene": "7794d03533d97905",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1057708,
+      "sha256": "fe8eec8213a01f513bd6686f042c65a66c6fadb9d623a36b93eb5c5db3b6100b"
+    },
+    {
+      "scene": "7794d03533d97905",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 743775,
+      "sha256": "83545a086d36b72963edb2ac917b6a7aead30947fb3fa37c737239de8113dc9b"
+    },
+    {
+      "scene": "7794d03533d97905",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1043714,
+      "sha256": "aed7e51ebcd253829f6cc4e3879af5396c2d2bf15997f8b57bf9bc9a6859b4f5"
+    },
+    {
+      "scene": "8c0ea69b00e2f550",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 888591,
+      "sha256": "642de15ddab3b71ca86024524359b45d21568032071b3e2f097710c0ec3c2808"
+    },
+    {
+      "scene": "8c0ea69b00e2f550",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1187204,
+      "sha256": "48c4dede2541937cd33347a5dadd9b615ac874dfecedd45e6d496b39e5fd3cf5"
+    },
+    {
+      "scene": "8c0ea69b00e2f550",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 803436,
+      "sha256": "1d7968a3603a9f5c454865eec801fc0669fde0883c3b2ceba67488e02eb899cb"
+    },
+    {
+      "scene": "8c0ea69b00e2f550",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1208364,
+      "sha256": "d7c76d31181ca1b64c1596add3b2409f05f7dfc36a2ef921b9924cced4fa9dde"
+    },
+    {
+      "scene": "8c0ea69b00e2f550",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 788914,
+      "sha256": "08270dce2434b4d557154f860d6b85d4fae893e5a3d1eee07dfa7ed5502880da"
+    },
+    {
+      "scene": "8c0ea69b00e2f550",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1199802,
+      "sha256": "4cb0deaa40e09e5e98207cc926c0304112c746b965be7cbc1aac21fb56064c43"
+    },
+    {
+      "scene": "a8cc9d1e56928758",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 812595,
+      "sha256": "46db4e1978061cea7b3219d4b60300c2e91d1a10719014bacb5b19a0719887d0"
+    },
+    {
+      "scene": "a8cc9d1e56928758",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1200865,
+      "sha256": "8b3c3844e2854b40c7f63cd0e5548bbba24a97f79ca4dc19e26c43d14b7714e4"
+    },
+    {
+      "scene": "a8cc9d1e56928758",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 868939,
+      "sha256": "d1b16ba0bb9a111624f09ba42c221b4507240a56b1cc40a0cd2dcc0649a9d6a6"
+    },
+    {
+      "scene": "a8cc9d1e56928758",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1224918,
+      "sha256": "07025b317a5bb6894a0bc94692c78a76b13b7ae94f91f0a84f5475ce40c55e4b"
+    },
+    {
+      "scene": "a8cc9d1e56928758",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 868405,
+      "sha256": "574e0f8ff7ae59364add932679beed7b540e9c81f42784648d5b7177e5a637a0"
+    },
+    {
+      "scene": "a8cc9d1e56928758",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1215655,
+      "sha256": "cab992907e198a4fbb441c07d09b26992e566d24ea5efe1dcd0e613321aab995"
+    },
+    {
+      "scene": "c49a14de01d7bd35",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 805469,
+      "sha256": "7ccfa19bcfb929ef9a16f73820cc7336c68b999164183e9c45ad1928b5a47703"
+    },
+    {
+      "scene": "c49a14de01d7bd35",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1143307,
+      "sha256": "f7fc2c2d8254045aa646d3955fb8700b2acf0e69c76a8d67543a32759e52bc55"
+    },
+    {
+      "scene": "c49a14de01d7bd35",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 860767,
+      "sha256": "be458470f91f9220ff8e33595e5a75b0096bcc5c919b3ceac71e24f275279bb0"
+    },
+    {
+      "scene": "c49a14de01d7bd35",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1144798,
+      "sha256": "0ff8fbf8b420f29edb1adb8bddb2205a31a340bdb2529d15fdfe2866bec875ae"
+    },
+    {
+      "scene": "c49a14de01d7bd35",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 818659,
+      "sha256": "3de98db5bf9c6f834adc87a5bd2fcb4a43235f6aeed26f4cdc0747e7b905fa7e"
+    },
+    {
+      "scene": "c49a14de01d7bd35",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1152870,
+      "sha256": "b61ebc9df0fd0f29326bc885af955aa5f6be84cc37f678ed930c7a63dc234990"
+    },
+    {
+      "scene": "d4bc08cad572effe",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 755699,
+      "sha256": "8b77bfdc9af3543a962b2a6c54c668f4d72f9f4388e65918dc6a1c6249d7ed31"
+    },
+    {
+      "scene": "d4bc08cad572effe",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1160744,
+      "sha256": "594474f622db13eb7eea060e8797d8e25c8f65dbf4c423425d0860d99978f8b1"
+    },
+    {
+      "scene": "d4bc08cad572effe",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 676760,
+      "sha256": "7eff5eaaefe95d0df45f9a864d1950186089ada06d44f44adcece531cec34c20"
+    },
+    {
+      "scene": "d4bc08cad572effe",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1216383,
+      "sha256": "1f7b57e0f501565bfc220e839144affcc7e04e105117267a27a5ea4aed8d5da7"
+    },
+    {
+      "scene": "d4bc08cad572effe",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 754026,
+      "sha256": "6a9317e720b57a68b4fff430e41388803c98d3ee86317a7ec9e16b9d6f97f24b"
+    },
+    {
+      "scene": "d4bc08cad572effe",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1192144,
+      "sha256": "10863a7240f4f55b415d6bd005bb6bf19a146c331fb3da3938a2688c1c73c293"
+    },
+    {
+      "scene": "fdd8c2ad35591b60",
+      "arm": "control",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 968887,
+      "sha256": "0d2d2b916500eb40b01a37052c756b94cc0f38ed3e435b8cb913543b5be6a254"
+    },
+    {
+      "scene": "fdd8c2ad35591b60",
+      "arm": "control",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1175014,
+      "sha256": "e09f9314cc1500f4cd2d99b80efd9271b62ae03dc957dcb838ad482108fc3818"
+    },
+    {
+      "scene": "fdd8c2ad35591b60",
+      "arm": "gae",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 957811,
+      "sha256": "b9eba7cdcfa5b118cb7f55ea4a7a6f9924bd98efc5e3fa33c1b0cd1523a16b12"
+    },
+    {
+      "scene": "fdd8c2ad35591b60",
+      "arm": "gae",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1230506,
+      "sha256": "677edafe73301914c31a6c025fd60c366c4d55920f78d80ac82700d294632360"
+    },
+    {
+      "scene": "fdd8c2ad35591b60",
+      "arm": "rgb",
+      "kind": "lateral",
+      "frames": 15,
+      "shape": [
+        760,
+        672,
+        3
+      ],
+      "bytes": 898370,
+      "sha256": "1f005711e9856d81e430a8fe245afd8452f0c1e8e04f90c524845366b8a66798"
+    },
+    {
+      "scene": "fdd8c2ad35591b60",
+      "arm": "rgb",
+      "kind": "trajectory",
+      "frames": 15,
+      "shape": [
+        812,
+        1346,
+        3
+      ],
+      "bytes": 1225014,
+      "sha256": "63af6971aa6dc7ae9390ba9864cbb6bc76203ee99f461d9de832fb83426172f2"
+    }
+  ]
+}

@@ -26,7 +26,7 @@
   "scene": "fe2fadf89a84e92a",
   "manifest": "/mnt/sfs_turbo/t00845730/re10k/manifest_test_c2w_v1.jsonl",
   "cache_name": "re10k_test",
-  "npu": 4,
+  "npu": 3,
   "minimum_free_gib": 26,
   "seed": 1234,
   "sampling_steps": 25,
