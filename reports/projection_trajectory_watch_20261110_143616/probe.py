@@ -98,6 +98,9 @@ def main():
     parser.add_argument("--job_dir",required=True)
     args = parser.parse_args()
     import fcntl
+    shared_card_gate = open('/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/npu7_projection_evaluation.lock', "a")
+    fcntl.flock(shared_card_gate, fcntl.LOCK_EX)
+    import fcntl
     from pathlib import Path
     joblock = (Path(args.job_dir)/"probe.lock").open("w")
     fcntl.flock(joblock,fcntl.LOCK_EX|fcntl.LOCK_NB)
