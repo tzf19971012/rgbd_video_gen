@@ -311,6 +311,27 @@ class SelfAttention(nn.Module):
         # so a plain Wan2.1 checkpoint keeps its exact state-dict key set.
         self.rope_phase_qk = None
         self.rope_phase_vo = None
+        # Plücker Flip PE (GAE camera.py PluckerFlipPE_V13 port): per-block
+        # additive geometric PE on Q/K post-RoPE.  Created by
+        # enable_plucker_pe(), absent otherwise (plain ckpt keys untouched).
+        self.plucker_pe = None
+
+    def enable_plucker_pe(self, mlp_hidden: int = 64, init: str = "zero",
+                          init_scale: float = 0.01, scale: float = 1.0,
+                          log_scale_aug_prob: float = 0.3,
+                          log_scale_aug_range=(-1.2, 1.6)):
+        from .plucker_flip_pe import PluckerFlipPE
+
+        self.plucker_pe = PluckerFlipPE(
+            self.dim,
+            plucker_init=init,
+            plucker_init_scale=init_scale,
+            plucker_mlp_hidden=mlp_hidden,
+            plucker_scale=scale,
+            log_scale_aug_prob=log_scale_aug_prob,
+            log_scale_aug_range=tuple(log_scale_aug_range),
+        ).to(device=self.q.weight.device, dtype=self.q.weight.dtype)
+        return self
 
     def enable_roce(self, mode: str = "qk_vo"):
         """Add ReDirector's two zero-init phase MLPs to this block.
@@ -339,7 +360,7 @@ class SelfAttention(nn.Module):
         self.rope_phase_vo = _phase_mlp() if mode == "qk_vo" else None
         return self
 
-    def forward(self, x, freqs, cape=None, roce_cam_emb=None):
+    def forward(self, x, freqs, cape=None, roce_cam_emb=None, plucker_6d=None):
         phase_qk = phase_vo = None
         if roce_cam_emb is not None:
             if self.rope_phase_qk is None:
@@ -355,6 +376,12 @@ class SelfAttention(nn.Module):
         v = self.v(x)
         q = rope_apply(q, freqs, self.num_heads, phase_qk)
         k = rope_apply(k, freqs, self.num_heads, phase_qk)
+        if plucker_6d is not None:
+            # Plücker Flip PE (GAE): additive scale-gated geometric PE on Q/K,
+            # applied POST-RoPE exactly as GAE PluckerAttention.forward does.
+            # This repo's rope keeps q/k in (B, S=V*h*w, D) -- already the
+            # (b, v*n, d) layout GAE's PE consumes, so it drops in directly.
+            q, k = self.plucker_pe.apply_to_qk(q, k, plucker_6d)
         if phase_vo is not None:
             # GTA-style value rotation: v is un-rotated going in and re-rotated
             # coming out, so the attention OUTPUT is equivariant to the camera
@@ -624,6 +651,7 @@ class DiTBlock(nn.Module):
         camera_pose_embedding=None,
         cape=None,
         roce_cam_emb=None,
+        plucker_6d=None,
     ):
         # msa: multi-head self-attention  mlp: multi-layer perceptron
         modulation = self.modulation.to(dtype=t_mod.dtype, device=t_mod.device)
@@ -658,7 +686,8 @@ class DiTBlock(nn.Module):
 
         input_x = _modulate(self.norm1(x), shift_msa, scale_msa)
         x = _gate(
-            x, gate_msa, self.self_attn(input_x, freqs, cape, roce_cam_emb)
+            x, gate_msa,
+            self.self_attn(input_x, freqs, cape, roce_cam_emb, plucker_6d)
         )
         x = x + self.cross_attn(self.norm3(x), context)
         input_x = _modulate(self.norm2(x), shift_mlp, scale_mlp)
@@ -856,6 +885,34 @@ class WanModel(torch.nn.Module):
         if copy_from_head or self.rgb_head is None:
             self.rgb_head = copy.deepcopy(self.head)
         return self.rgb_head
+
+    def enable_plucker_pe(self, mlp_hidden: int = 64, init: str = "zero",
+                          init_scale: float = 0.01, scale: float = 1.0,
+                          log_scale_aug_prob: float = 0.3,
+                          log_scale_aug_range=(-1.2, 1.6)):
+        """GAE-style Plücker Flip PE on every block's self-attention Q/K.
+
+        One PluckerFlipPE per block (independent E_q/E_k MLPs, RMSNorms,
+        alpha scales, metric scale gate), zero-init output layers, so enabling
+        this is a no-op numerically at step 0 -- checkpoints trained without it
+        can be warm-started.  The per-block PE params are NOT part of any
+        checkpoint key set trained before this flag existed; load with
+        strict=False.
+        """
+        for block in self.blocks:
+            block.self_attn.enable_plucker_pe(
+                mlp_hidden=mlp_hidden, init=init, init_scale=init_scale,
+                scale=scale, log_scale_aug_prob=log_scale_aug_prob,
+                log_scale_aug_range=log_scale_aug_range)
+        return self
+
+    def plucker_pe_parameters(self):
+        params = []
+        for block in self.blocks:
+            pe = getattr(block.self_attn, "plucker_pe", None)
+            if pe is not None:
+                params += list(pe.parameters())
+        return params
 
     def enable_roce(self, cam_channels: int, mode: str = "qk_vo"):
         """Camera-conditioned RoPE phase on the h/w axes (ReDirector's RoCE).

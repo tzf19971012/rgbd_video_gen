@@ -1,0 +1,121 @@
+# =============================================================================
+# 续训 — Plücker Flip PE x patch1，去掉 condition dropout（no-drop 臂）
+#
+# 从 logs/ovf_gae_re10k_patch1_flippe_drop/checkpoint-step-2200 恢复。
+# 与被续训 run 的唯一差别 = 关闭 condition dropout / CFG：
+#   camera_drop_prob: 0.2 -> 0.0
+#   ref_drop_prob:    0.2 -> 0.0
+#   eval_cfg_scale:   1.5 -> 1.0
+#
+# 动机（对照 concatpixel_drop 组的结论）：独立双 Bernoulli 采样下无条件分支
+# 只占 4% 训练量，eval 端 CFG=1.5 沿噪声方向外推，PSNR/LPIPS 双降；条件分支
+# 又被 36% 的丢条件样本稀释。去掉 drop 后与 flippe 主变量（Flip PE）解耦。
+# gae_plucker_flip_pe: true 保持不变 —— 这是该实验的主变量，不动。
+#
+# 其余逐位继承 checkpoint-step-2200 的训练现场：resume true +
+# accelerator.load_state（模型/优化器/scheduler/RNG），global_step 从 2200 续计。
+# batch_size 2 x grad_accum 4（与原 run 一致）。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_re10k_patch1_flippe_nodrop"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5
+vae_encoding_mode: "independent"
+
+# --- tokenization -------------------------------------------------------------
+gae_patch_mode: "patch1"
+
+# --- 相机注入（Flip PE 保留；drop 全部关闭）-------------------------------------
+view_condition_mode: "add"
+view_condition_plucker_resolution: "latent"
+camera_drop_prob: 0.0                # 去掉 drop：条件分支不再被稀释
+ref_drop_prob: 0.0                   # 去掉 drop
+eval_cfg_scale: 1.0                  # 无 drop 则无 CFG
+
+# --- Plücker Flip PE（保持不变 —— 本实验主变量）--------------------------------
+gae_plucker_flip_pe: true
+gae_plucker_pe_mlp_hidden: 64
+gae_plucker_pe_scale: 1.0
+gae_plucker_pe_log_scale_aug_prob: 0.3
+gae_plucker_pe_log_scale_aug_range: [-1.2, 1.6]
+
+# --- sigma 采样分布 ------------------------------------------------------------
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: -1.5
+rgb_flow_logit_std: 1.0
+
+# --- RGB aux loss（保持关闭）---------------------------------------------------
+gae_rgb_loss_weight: 0.0
+gae_rgb_t_max: 0.4
+gae_rgb_max_views: 1
+
+# --- 主损失加权 -----------------------------------------------------------------
+v_loss_t_eps: 1.0
+
+# --- 新层学习率 -----------------------------------------------------------------
+fresh_layer_lr_mult: 5.0
+
+# --- training ----------------------------------------------------------------
+train_all: false
+ddp_find_unused: true               # flip-PE 无 drop 时有注册未参与 loss 的参数，
+                                    # DDP 默认严格校验会直接报错（见 nohup ERR99999）
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 4      # 与 checkpoint-step-2200 现场（bs2 x accum4）一致
+batch_size: 2
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: true
+training_state_dir: "logs/ovf_gae_re10k_patch1_flippe_drop/checkpoint-step-2200"
+global_step: 2200
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution --------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data ---------------------------------------------------------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8                # 保持原 run 的 8 场景（未要求全量）
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

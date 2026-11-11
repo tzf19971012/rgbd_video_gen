@@ -25,7 +25,11 @@ from datetime import timedelta
 import numpy as np
 import torch
 from accelerate import Accelerator
-from accelerate.utils import InitProcessGroupKwargs, set_seed
+from accelerate.utils import (
+    DistributedDataParallelKwargs,
+    InitProcessGroupKwargs,
+    set_seed,
+)
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
@@ -44,6 +48,10 @@ from examples.wanvideo.model_training.train_with_accelerate_rgbd_nvs import (
     provision_output_path,
 )
 
+# Some arms (e.g. flip-PE without condition dropout) leave registered
+# trainable params out of the loss graph; DDP then aborts with "parameters
+# that were not used in producing loss". Configs can opt into the scan via
+# ddp_find_unused: true (small per-step overhead at 1.3B-LoRA scale).
 process_group_kwargs = InitProcessGroupKwargs(timeout=timedelta(minutes=30))
 PROJECT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -65,6 +73,9 @@ def build_dataset(cfg, split=None):
         num_target_views=cfg.num_target_views,
         random_permute_source_views=cfg.random_permute_source_views,
         view_order=cfg.get("view_order", "random"),
+        camera_span_prob=cfg.get("camera_span_prob", 0.0),
+        camera_span_min_deg=cfg.get("camera_span_min_deg", 5.0),
+        camera_span_max_deg=cfg.get("camera_span_max_deg", 35.0),
         video_tgt_interval_prob=cfg.get("video_tgt_interval_prob", 0.2),
         video_max_src_span=cfg.get("video_max_src_span", None),
         vggt_local_prob=cfg.get("vggt_local_prob", 0.2),
@@ -130,7 +141,11 @@ def main():
     accelerator = Accelerator(
         gradient_accumulation_steps=cfg.gradient_accumulation_steps,
         mixed_precision=cfg.mixed_precision,
-        kwargs_handlers=[process_group_kwargs],
+        kwargs_handlers=[
+            process_group_kwargs,
+            DistributedDataParallelKwargs(
+                find_unused_parameters=bool(cfg.get("ddp_find_unused", False))),
+        ],
     )
     accelerator.print(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
@@ -226,6 +241,13 @@ def main():
         camera_drop_prob=cfg.get("camera_drop_prob", 0.0),
         ref_drop_prob=cfg.get("ref_drop_prob", 0.0),
         eval_cfg_scale=cfg.get("eval_cfg_scale", 1.0),
+        gae_plucker_flip_pe=cfg.get("gae_plucker_flip_pe", False),
+        gae_plucker_pe_mlp_hidden=cfg.get("gae_plucker_pe_mlp_hidden", 64),
+        gae_plucker_pe_scale=cfg.get("gae_plucker_pe_scale", 1.0),
+        gae_plucker_pe_log_scale_aug_prob=cfg.get(
+            "gae_plucker_pe_log_scale_aug_prob", 0.3),
+        gae_plucker_pe_log_scale_aug_range=cfg.get(
+            "gae_plucker_pe_log_scale_aug_range", [-1.2, 1.6]),
     )
     model.set_training_param()
 
@@ -284,21 +306,30 @@ def main():
                     if p.requires_grad]
     fresh_params += [p for p in model.pipe.dit.head.parameters()
                      if p.requires_grad]
+    # Plücker Flip PE branch: brand-new per-block modules, train alongside the
+    # other fresh layers at the fresh LR multiplier.
+    fresh_params += list(model.pipe.dit.plucker_pe_parameters())
     fresh_ids = {id(p) for p in fresh_params}
     other_params = [p for p in model.trainable_modules()
                     if id(p) not in fresh_ids]
     param_groups = [{"params": other_params, "lr": cfg.learning_rate}]
-    if fresh_params and fresh_lr_mult != 1.0:
+    if fresh_params:
         param_groups.append(
             {"params": fresh_params, "lr": cfg.learning_rate * fresh_lr_mult})
     accelerator.print(
         f"[opt] fresh_lr_mult={fresh_lr_mult}  fresh={sum(p.numel() for p in fresh_params)} "
         f"other={sum(p.numel() for p in other_params)}  "
         f"lr={cfg.learning_rate} / {cfg.learning_rate * fresh_lr_mult}")
+    # Every trainable parameter must occur exactly once, including at 1x LR.
+    grouped_ids = [id(p) for group in param_groups for p in group["params"]]
+    expected_ids = {id(p) for p in model.trainable_modules()}
+    if len(grouped_ids) != len(set(grouped_ids)) or set(grouped_ids) != expected_ids:
+        raise RuntimeError("Optimizer groups omit or duplicate trainable parameters")
     try:
         optimizer = torch.optim.AdamW(param_groups, fused=True)
     except (RuntimeError, ValueError):
         optimizer = torch.optim.AdamW(param_groups)
+    configured_group_lrs = [group["lr"] for group in optimizer.param_groups]
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda _: 1.0)
     model, optimizer, scheduler, train_dataloader = accelerator.prepare(
         model, optimizer, scheduler, train_dataloader
@@ -308,7 +339,28 @@ def main():
         raise ValueError("train_dataloader is empty (dataset too small for world size)")
 
     if cfg.resume and cfg.training_state_dir not in (None, "na"):
-        accelerator.load_state(cfg.training_state_dir)
+        if cfg.get("resume_weights_only", False):
+            from safetensors.torch import load_model
+            missing, unexpected = load_model(accelerator.unwrap_model(model),
+                os.path.join(cfg.training_state_dir, "model.safetensors"), strict=False)
+            if missing or unexpected:
+                raise RuntimeError(f"Warm start mismatch: missing={missing}, unexpected={unexpected}")
+            accelerator.print("[resume] model weights restored; optimizer/scheduler freshly initialized")
+        else:
+            accelerator.load_state(cfg.training_state_dir, load_kwargs={"weights_only": False})
+        if cfg.get("resume_override_lr", False):
+            if len(optimizer.param_groups) != len(configured_group_lrs):
+                raise RuntimeError("Resume LR override: optimizer group count changed")
+            for group, lr in zip(optimizer.param_groups, configured_group_lrs):
+                group["lr"] = lr
+                group["initial_lr"] = lr
+            # Accelerate wraps the torch scheduler; update its actual bases so
+            # the next scheduler.step() cannot restore the checkpoint's old LR.
+            torch_scheduler = getattr(scheduler, "scheduler", scheduler)
+            torch_scheduler.base_lrs = list(configured_group_lrs)
+            torch_scheduler._last_lr = list(configured_group_lrs)
+            accelerator.print(f"[resume] overridden learning rates: {configured_group_lrs}")
+
 
     global_step = int(cfg.global_step)
     optimizer.zero_grad(set_to_none=True)

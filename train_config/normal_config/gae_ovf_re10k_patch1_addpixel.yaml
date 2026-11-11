@@ -1,0 +1,119 @@
+# =============================================================================
+# 对照实验 — add@pixel(14) x patch1（无 drop）
+#
+# 解耦 concatpixel 胜出原因的对照臂：与 gae_ovf_re10k_patch1_concatpixel.yaml
+# 逐位一致，唯一变量组 = view_condition_mode: "concat" -> "add"。
+# Plucker 仍按 pixel 分辨率无损栅格化（PixelUnshuffle, 6*14^2=1176ch），
+# 区别只在注入路径：add 模式经 ViewConditionEncoder 小 CNN 瓶颈
+# （1x1: 1176+8role -> 64 -> 3x3 -> 64 -> 1x1 -> 64，末层零初始化）后
+# z + view_condition 加性进入，concat 模式则把 1176ch 原始块直接送进
+# DiT patch_embedding（无瓶颈）。
+#
+# 判读标准（同 8 场景 overfit、同 seed 42、同 traj_eval_shared_noise 协议）：
+#   * add+pixel ≈ concat+pixel (s2000: PSNR 18.95 / d1 0.948 / rel_aligned 0.078)
+#     -> 赢家是 pixel 无损栅格化，注入方式无关紧要；
+#   * add+pixel 仍显著落后
+#     -> concat 注入本身有优势（无瓶颈、不扰动输入 latent、每通道独立权重）；
+#   * 附加参照：add+pixel vs aux0_patch1 (add+latent) 同步数对比单独度量
+#     latent 点采样精度损失。
+#
+# batch 与 concatpixel_full / 迁移后 concatpixel 现场一致：bs4 x accum1，
+# 2 NPU DDP -> 有效 batch 8（与原 concatpixel 的 bs2x2=8 等效）。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_re10k_patch1_addpixel"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5
+vae_encoding_mode: "independent"
+
+# --- tokenization -------------------------------------------------------------
+gae_patch_mode: "patch1"
+
+# --- 相机注入（本实验唯一变量组：mode=add，分辨率保持 pixel@14）-----------------
+view_condition_mode: "add"           # 唯一变量：加性注入（encoder 瓶颈路径）
+view_condition_plucker_resolution: "pixel"   # 与 concatpixel 相同的无损射线场
+view_condition_pixel_scale: 14       # 378=27*14, 672=48*14；6*14^2=1176ch/latent 像素
+view_condition_use_role: true        # add 模式默认开启（role 是 add 设计的一部分）
+view_condition_normalize_moment: false       # 保留公制尺度
+camera_drop_prob: 0.0                # 无 drop（与 concatpixel 协议一致）
+ref_drop_prob: 0.0
+eval_cfg_scale: 1.0                  # 无 drop 则无 CFG
+
+# --- sigma 采样分布 ------------------------------------------------------------
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: -1.5
+rgb_flow_logit_std: 1.0
+
+# --- RGB aux loss（保持关闭）---------------------------------------------------
+gae_rgb_loss_weight: 0.0
+gae_rgb_t_max: 0.4
+gae_rgb_max_views: 1
+
+# --- 主损失加权 -----------------------------------------------------------------
+v_loss_t_eps: 1.0
+
+# --- 新层学习率 -----------------------------------------------------------------
+fresh_layer_lr_mult: 5.0
+
+# --- training ----------------------------------------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1      # bs4 x accum1 x 2 NPU = 有效 batch 8
+batch_size: 4
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution --------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K overfit subset（与 concatpixel 相同的 8 场景）----------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

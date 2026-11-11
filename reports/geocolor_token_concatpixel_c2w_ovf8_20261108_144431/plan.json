@@ -1,0 +1,24 @@
+{
+  "device": 7,
+  "batch_size": 1,
+  "accumulation": 4,
+  "effective_batch": 4,
+  "max_steps": 4000,
+  "initialization": "Wan pretrained, new LoRA/geo adapters, no experiment resume",
+  "geo_patch": "native 2x2 as original experiment",
+  "camera": "corrected c2w, both branches concatpixel, geometry fp32",
+  "loss": "original channel-weighted geo64/color16 retained; color_loss_weight1",
+  "online_eval": "8 fixed TRAIN scenes, not held-out generalization",
+  "scene_ids": [
+    "00028da87cc5a4c4",
+    "0007fe14c86c4a78",
+    "000d2139ad05dc85",
+    "000e285b03f3fddf",
+    "0027e46f749ac7ec",
+    "0040ff89cd583609",
+    "00419dfa0b973e11",
+    "00469966d50c2b97"
+  ],
+  "manifest_sha256": "d43883dc9ba0eb9e326e0692efcf2de2990093a4c44274e8d153489bf5e6f69d",
+  "other_card7_job_preserved": 841627
+}

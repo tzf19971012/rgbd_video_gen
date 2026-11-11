@@ -15,6 +15,8 @@ Outputs under <run_dir>/traj_step<k>/<scene>/:
   montage_XX.jpg          rows gt rgb / pred rgb / gt depth / pred depth
   frames/<vid>_side.jpg   per-frame [gt | pred | gt depth | pred depth]
   per_frame_metrics.jsonl view_id, psnr, lpips, depth metrics, copy baseline
+  video_<run>_step<k>.mp4 rendered trajectory video (rows [GT|PRED] rgb over
+                          [GT|PRED] depth, captioned; --no_video to skip)
 
 Run from the repo root:
   ASCEND_RT_VISIBLE_DEVICES=4 python -m examples.wanvideo.model_training.infer_trajectory \
@@ -80,8 +82,17 @@ def _install_zero_fill_shim():
 
 @torch.no_grad()
 def run_scene(run_dir, checkpoint, scene_id, num_source_views, max_targets,
-              output_dir, downscale=2, cfg_scales=(1.0,)):
+              output_dir, downscale=2, cfg_scales=(1.0,), shared_target_noise=False,
+              cfg_scale_override=None, manifest=None, cache_name=None):
     cfg = OmegaConf.load(os.path.join(run_dir, "args.yaml"))
+    # Normalization belongs to training; changing cache split must not change it.
+    if cfg.get("gae_stats_path") is None:
+        cfg.gae_stats_path = os.path.join(
+            cfg.gae_cache_root, cfg.gae_dataset_name, "latent_stats.pt")
+    if manifest is not None:
+        cfg.manifest_path = manifest
+    if cache_name is not None:
+        cfg.gae_dataset_name = cache_name
     kind = ("geocolor_token"
             if cfg.get("wan_latent_cache_root", None) is not None else "gae")
     accelerator = Accelerator(mixed_precision=cfg.mixed_precision)
@@ -89,11 +100,18 @@ def run_scene(run_dir, checkpoint, scene_id, num_source_views, max_targets,
 
     model = build_model(kind, cfg, accelerator)
     model.set_training_param()
+    if cfg_scale_override is not None:
+        # Eval-time CFG sweep: override the checkpoint's trained-in
+        # eval_cfg_scale so the same weights can be probed at guidance 1.0
+        # (pure conditional) vs >1 (classifier-free guidance).
+        model.eval_cfg_scale = float(cfg_scale_override)
     from safetensors.torch import load_file
 
     weights = os.path.join(checkpoint, "model.safetensors")
     state = load_file(weights, device="cpu")
     missing, unexpected = model.load_state_dict(state, strict=False)
+    if missing or unexpected:
+        raise RuntimeError(f"Checkpoint mismatch: missing={missing}, unexpected={unexpected}")
     accelerator.print(
         f"Loaded {weights}: {len(state)} tensors, missing={len(missing)}, "
         f"unexpected={len(unexpected)}")
@@ -184,7 +202,8 @@ def run_scene(run_dir, checkpoint, scene_id, num_source_views, max_targets,
         gen = torch.Generator(device=device)
         gen.manual_seed(int(cfg.get("eval_sample_seed", 1234)))
         if kind == "geocolor_token":
-            pred_geo, pred_color = model.sample_latents(inputs=inputs, generator=gen)
+            pred_geo, pred_color = model.sample_latents(
+                inputs=inputs, generator=gen, shared_target_noise=shared_target_noise)
             pred_rgb = model._decode_color_views(
                 pred_color[:, :, s:], batch["images"].shape[-2],
                 batch["images"].shape[-1])
@@ -193,7 +212,8 @@ def run_scene(run_dir, checkpoint, scene_id, num_source_views, max_targets,
                 batch["images"].shape[-1])
         else:
             pred_z = model.sample_latents(
-                inputs, num_steps=model.eval_num_inference_steps, generator=gen)
+                inputs, num_steps=model.eval_num_inference_steps, generator=gen,
+                shared_target_noise=shared_target_noise)
             pred_rgb, pred_depth = model._decode_views(
                 pred_z[:, :, s:], batch["images"].shape[-2],
                 batch["images"].shape[-1])
@@ -210,7 +230,7 @@ def run_scene(run_dir, checkpoint, scene_id, num_source_views, max_targets,
             valid = (gd > 1e-3) & torch.isfinite(gd)
             mse = float(((pr - gr) ** 2).mean())
             psnr = 100.0 if mse < 1e-10 else -10 * math.log10(mse)
-            copy_psnr = max(float(((gr - sg) ** 2).mean()) for sg in src_gt)
+            copy_psnr = min(float(((gr - sg) ** 2).mean()) for sg in src_gt)
             copy_psnr = 100.0 if copy_psnr < 1e-10 else -10 * math.log10(copy_psnr)
             lp = float("nan")
             if lpips_net is not None:
@@ -313,6 +333,49 @@ def run_scene(run_dir, checkpoint, scene_id, num_source_views, max_targets,
         f"nearest_src_psnr={_mean('nearest_src_psnr'):.4f}")
 
 
+def _synthesize_video(output_dir, run_name, step, scene_id, fps=3.0):
+    """Encode the rendered trajectory into an mp4 next to the frame dumps.
+
+    Layout matches tools/make_traj_videos.py's per-run video: rows
+    [GT | PRED] rgb over [GT | PRED] depth, per-frame metric captions.
+    Encoding failures (missing imageio-ffmpeg, odd dims, ...) must never
+    discard the frame dumps, so every failure path only warns.
+    """
+    metrics_fp = os.path.join(output_dir, "per_frame_metrics.jsonl")
+    with open(metrics_fp) as fh:
+        rows = [json.loads(l) for l in fh]
+    try:
+        from tools.make_traj_videos import (
+            _label, _sep_h, _sep_v, _split_side, encode)
+    except ImportError as exc:
+        print(f"video skipped (cannot import encoder helpers: {exc})")
+        return
+
+    frames = []
+    for r in rows:
+        fp = os.path.join(output_dir, "frames", f"{r['view_id']}_side.jpg")
+        if not os.path.isfile(fp):
+            print(f"video skipped (missing frame dump {fp})")
+            return
+        gt_rgb, pred_rgb, gt_d, pred_d = _split_side(fp)
+        h = gt_rgb.shape[0]
+        rgb = np.concatenate([gt_rgb, _sep_v(h), pred_rgb], axis=1)
+        dep = np.concatenate([gt_d, _sep_v(h), pred_d], axis=1)
+        img = np.concatenate([rgb, _sep_h(rgb.shape[1], 4), dep], axis=0)
+        frames.append(_label(img, [
+            f"v{r['view_id']}  psnr={r['tgt_rgb_psnr']:.2f}  "
+            f"lpips={r['tgt_rgb_lpips']:.3f}  d1={r['tgt_depth_delta1']:.3f}  "
+            f"rel={r['tgt_depth_abs_rel_aligned']:.3f}  "
+            f"(copy-src {r['nearest_src_psnr']:.2f})"],
+            title=f"{run_name} @step{step}  {scene_id}"))
+
+    out_fp = os.path.join(output_dir, f"video_{run_name}_step{step}.mp4")
+    try:
+        encode(frames, fps, out_fp)
+    except Exception as exc:
+        print(f"video encode failed: {exc}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--run_dir", type=str, required=True)
@@ -320,6 +383,24 @@ def main():
     parser.add_argument("--scene_id", type=str, default="00028da87cc5a4c4")
     parser.add_argument("--max_targets", type=int, default=30)
     parser.add_argument("--downscale", type=int, default=2)
+    parser.add_argument("--cfg_scale", type=float, default=None,
+                        help="override the model's eval_cfg_scale (e.g. 1.0 "
+                             "to disable CFG); output goes to "
+                             "traj_step<N>_cfg<X> to keep runs apart")
+    parser.add_argument("--shared_target_noise", action="store_true",
+                        help="all target slots start from ONE noise field so "
+                             "adjacent frames pick the same conditional mode "
+                             "(temporal-consistency aid, inference-only)")
+    parser.add_argument("--fps", type=float, default=3.0,
+                        help="frame rate of the synthesized trajectory mp4")
+    parser.add_argument("--no_video", action="store_true",
+                        help="skip mp4 synthesis after rendering")
+    parser.add_argument("--manifest", type=str, default=None,
+                        help="override cfg.manifest_path, e.g. the re10k "
+                             "manifest_test.jsonl to probe a held-out scene")
+    parser.add_argument("--cache_name", type=str, default=None,
+                        help="override gae_dataset_name for the latent cache "
+                             "dir, e.g. re10k_test to match --manifest")
     args = parser.parse_args()
 
     checkpoint = args.checkpoint
@@ -328,11 +409,21 @@ def main():
     else:
         step = int(checkpoint.rsplit("-", 1)[1])
     cfg = OmegaConf.load(os.path.join(args.run_dir, "args.yaml"))
+    suffix = ("" if args.cfg_scale is None
+              else f"_cfg{args.cfg_scale:g}")
+    if args.manifest is not None or args.cache_name is not None:
+        suffix += "_test"
     output_dir = os.path.join(
-        args.run_dir, f"traj_step{step}", args.scene_id)
+        args.run_dir, f"traj_step{step}{suffix}", args.scene_id)
     run_scene(args.run_dir, checkpoint, args.scene_id,
               int(cfg.num_source_views), args.max_targets, output_dir,
-              args.downscale)
+              args.downscale, shared_target_noise=args.shared_target_noise,
+              cfg_scale_override=args.cfg_scale,
+              manifest=args.manifest, cache_name=args.cache_name)
+    if not args.no_video:
+        _synthesize_video(output_dir,
+                          os.path.basename(args.run_dir.rstrip("/")),
+                          step, args.scene_id, fps=args.fps)
 
 
 if __name__ == "__main__":

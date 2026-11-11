@@ -123,21 +123,39 @@ class WanGeoColorNVSTrainingModule(WanGAENVSTrainingModule):
         # the same default dtype as the parent's encoder (fp32 -- the plucker
         # input is fp32 and eval runs outside autocast); accelerator.prepare
         # moves it to the rank device.
+        #
+        # Per-stream plucker resolution: the Wan color grid (48x84 for 378x672)
+        # has no integer pixel_scale relationship to the pixel grid (47.25
+        # rows -> padded 48), so plucker_resolution="pixel" can only ever work
+        # for the geo stream.  Allow an override (config keys
+        # view_condition_plucker_resolution_rgb / view_condition_pixel_scale_rgb,
+        # both defaulting to the geo stream's values) so pixel-mode runs can
+        # keep the color conditioner at native latent resolution.
         src = self.view_condition_encoder
+        _args_cfg = kwargs.get("args")
+        if _args_cfg is not None:
+            rgb_resolution = _args_cfg.get(
+                "view_condition_plucker_resolution_rgb", src.plucker_resolution)
+            rgb_pixel_scale = _args_cfg.get(
+                "view_condition_pixel_scale_rgb", src.pixel_scale)
+        else:
+            rgb_resolution = src.plucker_resolution
+            rgb_pixel_scale = src.pixel_scale
         self.view_condition_encoder_rgb = ViewConditionEncoder(
             out_channels=color_c,
-            role_dim=src.role_embedding.embedding_dim,
-            hidden_channels=src.backbone[0].out_channels,
-            plucker_resolution=src.plucker_resolution,
-            pixel_scale=src.pixel_scale,
+            role_dim=src.role_embedding.embedding_dim if src.role_embedding is not None else 8,
+            hidden_channels=src.backbone[0].out_channels if src.backbone is not None else 64,
+            plucker_resolution=rgb_resolution,
+            pixel_scale=rgb_pixel_scale,
             mode=src.mode,
             use_role=src.use_role,
             normalize_moment=src.normalize_moment,
             geometry_fp32=self.camera_geometry_fp32,
         )
         self.accelerator.print(
-            f"[geo-color] second ViewConditionEncoder(out_channels={color_c}) "
-            "for the Wan-latent (color) stream"
+            f"[geo-color] second ViewConditionEncoder(out_channels={color_c}, "
+            f"plucker_resolution={rgb_resolution}, pixel_scale={rgb_pixel_scale}"
+            ") for the Wan-latent (color) stream"
         )
 
         # --- Wan color latent cache -----------------------------------------
@@ -152,9 +170,8 @@ class WanGeoColorNVSTrainingModule(WanGAENVSTrainingModule):
         self._wan_file_cache = {}
         # Flow matching assumes Var(x0) ~ 1; the per-channel standardization
         # delivers that, so the color term enters the joint MSE with weight 1.
-        # A configured weight w scales the color channels by sqrt(w) in BOTH the
-        # prediction and the target, which weights the squared term by exactly w
-        # without touching anything downstream (the trainer's masked MSE).
+        # A configured weight scales prediction/target only at the loss boundary.
+        # Latent inputs and sampled velocities are never rescaled.
         self.color_loss_weight = float(color_loss_weight)
         if self.color_loss_weight <= 0:
             raise ValueError(
@@ -360,11 +377,9 @@ class WanGeoColorNVSTrainingModule(WanGAENVSTrainingModule):
         v_target_geo = noise_geo - geo_gt
         v_target_color = noise_color - color_gt
 
+        # Weight only the loss-space residual; model inputs and ODE velocities
+        # remain in the same standardized latent coordinates at train/eval.
         w = self.color_loss_weight ** 0.5
-        if w != 1.0:
-            # see the color_loss_weight comment in __init__
-            x_t_color = x_t_color * w
-            v_target_color = v_target_color * w
 
         timestep = (
             sigma.reshape(batch_size) * self.pipe.scheduler.num_train_timesteps
@@ -386,8 +401,8 @@ class WanGeoColorNVSTrainingModule(WanGAENVSTrainingModule):
             "color_mse": _masked_mse(pred_color, v_target_color, mask).detach(),
         }
         return {
-            "pred": torch.cat([pred_geo, pred_color], dim=1),
-            "rgb_gt": torch.cat([v_target_geo, v_target_color], dim=1),
+            "pred": torch.cat([pred_geo, pred_color * w], dim=1),
+            "rgb_gt": torch.cat([v_target_geo, v_target_color * w], dim=1),
             "loss_masks": inputs["loss_masks"],
             "weight": 1.0,
             "sigma": sigma.reshape(batch_size),
@@ -422,7 +437,6 @@ class WanGeoColorNVSTrainingModule(WanGAENVSTrainingModule):
                          generator=generator)
         xg[:, :, :s] = z_geo[:, :, :s]
         xc[:, :, :s] = z_color[:, :, :s]
-        w = self.color_loss_weight ** 0.5
         for i in range(num_steps):
             timestep = (
                 sigmas[i] * self.pipe.scheduler.num_train_timesteps
@@ -433,7 +447,7 @@ class WanGeoColorNVSTrainingModule(WanGAENVSTrainingModule):
             )
             dt = sigmas[i] - sigmas[i + 1]
             xg[:, :, s:] = xg[:, :, s:] - dt * vg[:, :, s:].to(xg.dtype)
-            xc[:, :, s:] = xc[:, :, s:] - dt * (vc[:, :, s:] / w).to(xc.dtype)
+            xc[:, :, s:] = xc[:, :, s:] - dt * vc[:, :, s:].to(xc.dtype)
             xg[:, :, :s] = z_geo[:, :, :s]
             xc[:, :, :s] = z_color[:, :, :s]
         return xg, xc

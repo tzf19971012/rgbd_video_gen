@@ -1,0 +1,43 @@
+{
+  "runs": [
+    {
+      "arm": "gae",
+      "run_dir": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/projection_gae_3npu_resume_3card_20261110_110818",
+      "max_step": 10000
+    },
+    {
+      "arm": "rgb",
+      "run_dir": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/projection_rgb_3npu_resume_3card_20261110_110818",
+      "max_step": 10000
+    }
+  ],
+  "code_root": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/projection_ablation_20261109_113836/resume_3card_20261110_110818/code",
+  "source_hashes": {
+    "examples/wanvideo/model_training/WanGAENVSTrainingModule.py": "0bb2cd017a3f21e7b129bab90ff736bb852fa07bfd28ca797ef479d4e3c693a6",
+    "examples/wanvideo/model_training/WanRGBDNVSTrainingModule.py": "d12a1e1c9bd80ae3fb6c7db035572e75051dbfb3dd69080f368113b7c5e300e4",
+    "examples/wanvideo/model_training/infer_nvs_compare.py": "995e3a98f2950d3effdfd2d68865972bfed73d84eaa80181f6d89c6a8506ac81",
+    "diffsynth/models/wan_video_dit.py": "b05bda728e620e708ae5705491da98508ee9aa74e07974e83f5e40369a0017d7",
+    "diffsynth/models/view_condition.py": "72f24ba80bda682c482e3fe9aa09281fc707f6ab88bc8ff9324db520ff07389c",
+    "utils/projection_condition.py": "75613147cfb11bd85d1f006d1df764f65c969f1dc9cd2a0a248fb61b2b8641e8"
+  },
+  "interval": 1000,
+  "first_step": 2000,
+  "poll_seconds": 15,
+  "scene": "fe2fadf89a84e92a",
+  "manifest": "/mnt/sfs_turbo/t00845730/re10k/manifest_test_c2w_v1.jsonl",
+  "cache_name": "re10k_test",
+  "npu": 7,
+  "minimum_free_gib": 26,
+  "seed": 1234,
+  "sampling_steps": 25,
+  "shared_target_noise": true,
+  "source_ids": [
+    "00000000",
+    "00000015",
+    "00000030",
+    "00000045",
+    "00000060",
+    "00000075"
+  ],
+  "pin_retention": "latest successful checkpoint per arm plus all queued/running checkpoints; original training checkpoints untouched"
+}

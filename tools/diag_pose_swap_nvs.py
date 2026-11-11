@@ -116,15 +116,15 @@ def main():
     device = accelerator.device
     lpips_net = model._get_lpips(device)
 
-    def render(chunk_views, c2w_override=None):
-        """Sample targets for a chunk; optionally override TARGET c2w rows."""
+    def render(chunk_views, swap_perm=None):
+        """Sample targets for a chunk; optionally cyclic-shift TARGET c2w rows."""
         items = [dataset._load_view(v)
                  for v in list(src_views) + list(chunk_views)]
         V = len(items)
         K = torch.stack([it["K"] for it in items]).unsqueeze(0)
         c2w = torch.stack([it["c2w"] for it in items]).unsqueeze(0).clone()
-        if c2w_override is not None:
-            c2w[:, s:] = c2w_override
+        if swap_perm is not None:
+            c2w[:, s:] = c2w[:, s:][:, swap_perm]
         depth_masks = torch.cat([it["valid_mask"] for it in items], dim=0)
         rgb_masks = torch.cat(
             [torch.zeros_like(it["valid_mask"]) for it in items[:s]]
@@ -172,7 +172,7 @@ def main():
         # cyclic shift of the TARGET pose block: [t0..t2] -> [t2,t0,t1]
         pred_t, depth_t, gt_rgb, gt_d = render(chunk)                      # true
         shift = torch.roll(torch.arange(T), 1)
-        pred_s, depth_s, _, _ = render(chunk, c2w_override=shift)
+        pred_s, depth_s, _, _ = render(chunk, swap_perm=shift)
         # gt_swap[j] = GT of the view whose pose slot j received = chunk[shift[j]]
         gt_rgb_swap = gt_rgb[shift]
         gt_d_swap = gt_d[shift]

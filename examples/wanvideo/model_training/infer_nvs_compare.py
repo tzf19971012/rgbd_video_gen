@@ -127,6 +127,11 @@ def build_model(kind, cfg, accelerator):
         camera_drop_prob=cfg.get("camera_drop_prob", 0.0),
         ref_drop_prob=cfg.get("ref_drop_prob", 0.0),
         eval_cfg_scale=cfg.get("eval_cfg_scale", 1.0),
+        gae_plucker_flip_pe=cfg.get("gae_plucker_flip_pe", False),
+        gae_plucker_pe_mlp_hidden=cfg.get("gae_plucker_pe_mlp_hidden", 64),
+        gae_plucker_pe_scale=cfg.get("gae_plucker_pe_scale", 1.0),
+        gae_plucker_pe_log_scale_aug_prob=cfg.get("gae_plucker_pe_log_scale_aug_prob", 0.3),
+        gae_plucker_pe_log_scale_aug_range=cfg.get("gae_plucker_pe_log_scale_aug_range", [-1.2, 1.6]),
         **common,
     )
 

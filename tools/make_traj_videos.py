@@ -16,7 +16,6 @@ import argparse
 import json
 import os
 
-import imageio.v2 as imageio
 import numpy as np
 from PIL import Image, ImageDraw
 
@@ -95,9 +94,33 @@ def load_run(run_dir):
 
 
 def encode(frames, fps, path):
-    imageio.mimwrite(
-        path, frames, fps=fps, codec="libx264", pixelformat="yuv420p",
-        ffmpeg_params=["-crf", "18"])
+    """Write frames as an H.264 mp4 (yuv420p + faststart, browser-playable).
+
+    Go through imageio_ffmpeg's bundled ffmpeg binary directly so the codec
+    can't silently degrade to mpeg4/mp4v (which browsers can't play).
+    """
+    try:
+        import imageio_ffmpeg
+    except ImportError as e:
+        raise RuntimeError(
+            "imageio-ffmpeg is required to encode mp4 (pip install "
+            "imageio-ffmpeg)") from e
+
+    h, w = frames[0].shape[:2]
+    if h % 2 or w % 2:
+        w2, h2 = w - w % 2, h - h % 2
+        frames = [np.asarray(Image.fromarray(f).resize(
+            (w2, h2), Image.BILINEAR)) for f in frames]
+        h, w = frames[0].shape[:2]
+
+    writer = imageio_ffmpeg.write_frames(
+        path, (w, h), fps=fps, codec="libx264", pix_fmt_out="yuv420p",
+        output_params=["-crf", "18", "-movflags", "+faststart"],
+        macro_block_size=1)
+    writer.send(None)
+    for f in frames:
+        writer.send(np.ascontiguousarray(np.asarray(f), dtype=np.uint8))
+    writer.close()
     print(f"wrote {path} ({len(frames)} frames)")
 
 

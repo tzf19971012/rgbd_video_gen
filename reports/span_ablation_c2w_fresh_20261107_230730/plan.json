@@ -1,0 +1,16 @@
+{
+  "start_step": 0,
+  "max_steps": 10000,
+  "initialization": "Wan2.1-T2V-1.3B pretrained; fresh LoRA and GAE adapter layers; no experiment checkpoint loaded",
+  "learning_rate": 3e-05,
+  "fresh_lr_mult": 5,
+  "effective_batch_per_arm": 12,
+  "seed": 42,
+  "geometry_fp32": true,
+  "validation": "Training-manifest fixed64 samples for online monitoring; held-out lateral probes must use manifest_test_c2w_v1.jsonl and re10k_test cache.",
+  "legacy_raw_assets": "Untouched; NPZ camera fields remain legacy w2c and must not be used as c2w. Fixed manifests are authoritative for new runs.",
+  "batch_size": 12,
+  "gradient_accumulation_steps": 1,
+  "total_training_samples_per_arm": 120000,
+  "batch_change": "User requested bs12; early bs2 runs restarted from step0, no checkpoint loaded. Effective batch changed from16 to12."
+}

@@ -33,3 +33,22 @@ log_blur/
 log_purecolor/
 reports/diag_pose_sensitivity/
 reports/diag_pose_sensitivity_*.log
+
+# Generated experiment artifacts (source/config/protocol remain versioned)
+/reports/**/*.jpg
+/reports/**/*.png
+/reports/**/*.npy
+/reports/**/*.npz
+/reports/**/*.log
+/reports/**/*.jsonl
+/reports/**/*.bin
+/reports/**/*.pkl
+/reports/**/*.lock
+/reports/**/*.pid
+/reports/**/runtime_env.json
+/reports/**/runtime_env.*.json
+/reports/**/features/
+/reports/**/cache/
+/reports/**/pins/
+/reports/**/checkpoints/
+/reports/latest_*.txt

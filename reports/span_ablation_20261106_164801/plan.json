@@ -1,0 +1,45 @@
+{
+  "arms": [
+    {
+      "arm": "control",
+      "npu": 1,
+      "config": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/control.yaml",
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_control",
+      "start_step": 8000,
+      "end_step": 18000,
+      "additional_updates": 10000
+    },
+    {
+      "arm": "span5to20",
+      "npu": 4,
+      "config": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/span5to20.yaml",
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to20",
+      "start_step": 8000,
+      "end_step": 18000,
+      "additional_updates": 10000
+    },
+    {
+      "arm": "span5to35",
+      "npu": 5,
+      "config": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/span5to35.yaml",
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to35",
+      "start_step": 8000,
+      "end_step": 18000,
+      "additional_updates": 10000
+    },
+    {
+      "arm": "span10to35",
+      "npu": 6,
+      "config": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/span10to35.yaml",
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span10to35",
+      "start_step": 8000,
+      "end_step": 18000,
+      "additional_updates": 10000
+    }
+  ],
+  "training": "full manifest, no subset/scene filter",
+  "effective_batch": 16,
+  "eval_samples": 64,
+  "initial_weights": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/initial-step-8000/model.safetensors",
+  "initial_weights_sha256": "68189d326267fd21dcf8b3f9141627d35e0489b7a4e03ce1320642f7d8af20a5"
+}

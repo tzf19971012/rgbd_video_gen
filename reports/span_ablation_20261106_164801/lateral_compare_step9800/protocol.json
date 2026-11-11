@@ -1,0 +1,111 @@
+{
+  "step": 9800,
+  "scene": "fe2fadf89a84e92a",
+  "split": "test",
+  "commands": [
+    {
+      "arm": "control",
+      "command": [
+        "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+        "-u",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/lateral_compare_step9800/probe9800.py",
+        "--run_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_control",
+        "--checkpoint",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/lateral_compare_step9800/control/checkpoint-step-9800",
+        "--scene_id",
+        "fe2fadf89a84e92a",
+        "--output_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_control/lateral_probe_step9800/fe2fadf89a84e92a",
+        "--num_inference_steps",
+        "25",
+        "--seed",
+        "1234",
+        "--manifest",
+        "/mnt/sfs_turbo/t00845730/re10k/manifest_test.jsonl",
+        "--cache_name",
+        "re10k_test"
+      ],
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_control/lateral_probe_step9800/fe2fadf89a84e92a"
+    },
+    {
+      "arm": "span5to20",
+      "command": [
+        "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+        "-u",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/lateral_compare_step9800/probe9800.py",
+        "--run_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to20",
+        "--checkpoint",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/lateral_compare_step9800/span5to20/checkpoint-step-9800",
+        "--scene_id",
+        "fe2fadf89a84e92a",
+        "--output_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to20/lateral_probe_step9800/fe2fadf89a84e92a",
+        "--num_inference_steps",
+        "25",
+        "--seed",
+        "1234",
+        "--manifest",
+        "/mnt/sfs_turbo/t00845730/re10k/manifest_test.jsonl",
+        "--cache_name",
+        "re10k_test"
+      ],
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to20/lateral_probe_step9800/fe2fadf89a84e92a"
+    },
+    {
+      "arm": "span5to35",
+      "command": [
+        "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+        "-u",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/lateral_compare_step9800/probe9800.py",
+        "--run_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to35",
+        "--checkpoint",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/lateral_compare_step9800/span5to35/checkpoint-step-9800",
+        "--scene_id",
+        "fe2fadf89a84e92a",
+        "--output_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to35/lateral_probe_step9800/fe2fadf89a84e92a",
+        "--num_inference_steps",
+        "25",
+        "--seed",
+        "1234",
+        "--manifest",
+        "/mnt/sfs_turbo/t00845730/re10k/manifest_test.jsonl",
+        "--cache_name",
+        "re10k_test"
+      ],
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to35/lateral_probe_step9800/fe2fadf89a84e92a"
+    },
+    {
+      "arm": "span10to35",
+      "command": [
+        "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+        "-u",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/lateral_compare_step9800/probe9800.py",
+        "--run_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span10to35",
+        "--checkpoint",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/lateral_compare_step9800/span10to35/checkpoint-step-9800",
+        "--scene_id",
+        "fe2fadf89a84e92a",
+        "--output_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span10to35/lateral_probe_step9800/fe2fadf89a84e92a",
+        "--num_inference_steps",
+        "25",
+        "--seed",
+        "1234",
+        "--manifest",
+        "/mnt/sfs_turbo/t00845730/re10k/manifest_test.jsonl",
+        "--cache_name",
+        "re10k_test"
+      ],
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span10to35/lateral_probe_step9800/fe2fadf89a84e92a"
+    }
+  ],
+  "seed": 1234,
+  "denoise_steps": 25,
+  "shared_target_noise": true,
+  "reference": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261104_202722/lateral_probe_step8000/fe2fadf89a84e92a"
+}

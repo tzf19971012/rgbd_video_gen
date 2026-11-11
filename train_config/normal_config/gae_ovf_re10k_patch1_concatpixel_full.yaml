@@ -1,0 +1,111 @@
+# =============================================================================
+# 续训 — concat@pixel(14) x patch1（无 drop）+ 全量数据
+#
+# 从 logs/ovf_gae_re10k_patch1_concatpixel/checkpoint-step-2400 恢复，
+# 与被续训 run 的唯一差别 = 训练数据从 8 场景 overfit 子集放开到全量：
+#   num_train_samples: null   # 7884 场景全部参与训练（ latent cache 已全量覆盖，
+#                             # 每场景 16 个缓存视图；num_train_samples: 8 是
+#                             # 之前的 debug 截断，train_all 在 gae 路径不生效）
+#
+# 其余逐位继承 checkpoint-step-2400 的训练现场：
+#   resume: true + training_state_dir -> accelerator.load_state（模型/优化器/
+#   scheduler/RNG 全量恢复），global_step 从 2400 续计。
+#   batch_size 4 x grad_accum 1（与 step<=2400 期间一致）。
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_gae_re10k_patch1_concatpixel_full"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- GAE latent backend ------------------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5
+vae_encoding_mode: "independent"
+
+# --- tokenization -------------------------------------------------------------
+gae_patch_mode: "patch1"
+
+# --- 相机注入（无 drop，与被续训 run 一致）--------------------------------------
+view_condition_mode: "concat"
+view_condition_plucker_resolution: "pixel"
+view_condition_pixel_scale: 14
+view_condition_use_role: false
+view_condition_normalize_moment: false
+camera_drop_prob: 0.0
+ref_drop_prob: 0.0
+eval_cfg_scale: 1.0
+
+# --- sigma 采样分布 ------------------------------------------------------------
+rgb_flow_timestep_sampling: "logit_normal"
+rgb_flow_logit_mean: -1.5
+rgb_flow_logit_std: 1.0
+
+# --- RGB aux loss（保持关闭）---------------------------------------------------
+gae_rgb_loss_weight: 0.0
+gae_rgb_t_max: 0.4
+gae_rgb_max_views: 1
+
+# --- 主损失加权 -----------------------------------------------------------------
+v_loss_t_eps: 1.0
+
+# --- 新层学习率 -----------------------------------------------------------------
+fresh_layer_lr_mult: 5.0
+
+# --- training ----------------------------------------------------------------
+train_all: false                     # gae 路径不读此键；全量由 num_train_samples: null 控制
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1      # 与 checkpoint-step-2400 现场（bs4 x accum1）一致
+batch_size: 4
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 200
+resume: true
+training_state_dir: "logs/ovf_gae_re10k_patch1_concatpixel/checkpoint-step-2400"
+global_step: 2400
+seed: 42
+
+# --- views -------------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution --------------------------------------------------------------
+resolution: [378, 672]
+
+# --- data: RealEstate10K 全量 --------------------------------------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: null              # 全量：7884 场景（不再截断到 8 个）
+dataloader_num_workers: 4
+
+# --- eval --------------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6

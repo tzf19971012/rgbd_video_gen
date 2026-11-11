@@ -1,0 +1,82 @@
+{
+  "step": 9400,
+  "scene": "00028da87cc5a4c4",
+  "seed": 1234,
+  "denoise_steps": 25,
+  "shared_target_noise": false,
+  "commands": [
+    {
+      "arm": "control",
+      "command": [
+        "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+        "-u",
+        "-m",
+        "examples.wanvideo.model_training.infer_trajectory",
+        "--run_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_control",
+        "--checkpoint",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/trajectory_compare_step9400/control/checkpoint-step-9400",
+        "--scene_id",
+        "00028da87cc5a4c4",
+        "--max_targets",
+        "30"
+      ],
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_control/traj_step9400/00028da87cc5a4c4"
+    },
+    {
+      "arm": "span5to20",
+      "command": [
+        "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+        "-u",
+        "-m",
+        "examples.wanvideo.model_training.infer_trajectory",
+        "--run_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to20",
+        "--checkpoint",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/trajectory_compare_step9400/span5to20/checkpoint-step-9400",
+        "--scene_id",
+        "00028da87cc5a4c4",
+        "--max_targets",
+        "30"
+      ],
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to20/traj_step9400/00028da87cc5a4c4"
+    },
+    {
+      "arm": "span5to35",
+      "command": [
+        "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+        "-u",
+        "-m",
+        "examples.wanvideo.model_training.infer_trajectory",
+        "--run_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to35",
+        "--checkpoint",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/trajectory_compare_step9400/span5to35/checkpoint-step-9400",
+        "--scene_id",
+        "00028da87cc5a4c4",
+        "--max_targets",
+        "30"
+      ],
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span5to35/traj_step9400/00028da87cc5a4c4"
+    },
+    {
+      "arm": "span10to35",
+      "command": [
+        "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+        "-u",
+        "-m",
+        "examples.wanvideo.model_training.infer_trajectory",
+        "--run_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span10to35",
+        "--checkpoint",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_ablation_20261106_164801/trajectory_compare_step9400/span10to35/checkpoint-step-9400",
+        "--scene_id",
+        "00028da87cc5a4c4",
+        "--max_targets",
+        "30"
+      ],
+      "output": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_20261106_span10to35/traj_step9400/00028da87cc5a4c4"
+    }
+  ],
+  "notes": "Same fixed six cached sources, real target poses, independent target chunks. Training-manifest scene. Only inference; live training unchanged."
+}

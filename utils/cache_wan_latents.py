@@ -44,6 +44,8 @@ def parse_args():
     p.add_argument("--cache-root", default="/mnt/sfs_turbo/t00845730/wan_latent_cache")
     p.add_argument("--out-name", required=True)
     p.add_argument("--limit-scenes", type=int, default=8)
+    p.add_argument("--only-scene", default=None,
+                   help="cache a single scene_id (overrides --limit-scenes)")
     p.add_argument("--min-views", type=int, default=9,
                    help="mirror restrict_views_to_cache: drop scenes with fewer")
     p.add_argument("--wan-model-root", default="/mnt/sfs_turbo/t00845730/wan21")
@@ -67,6 +69,8 @@ def main():
         manifest_scenes = [json.loads(l)["scene_id"] for l in f if l.strip()]
     scenes = []
     for sid in manifest_scenes:
+        if args.only_scene and sid != args.only_scene:
+            continue
         meta_fp = os.path.join(gae_dir, f"{sid}.meta.json")
         if not os.path.exists(meta_fp):
             continue

@@ -1,0 +1,47 @@
+{
+  "scenes": [
+    "02b618a34bc12ff9",
+    "237ef12cd69e2aa0",
+    "48d4444b94c2a2c0",
+    "700528d00b3f9c2d",
+    "9c4e84ed5d25728a",
+    "b8c1bf6864e3eb90",
+    "d0d176ef9f64504c",
+    "fdd8c2ad35591b60"
+  ],
+  "eligible_count": 149,
+  "arms": [
+    {
+      "arm": "control",
+      "run": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_c2w_fresh_20261107_230730_control_bs12",
+      "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_multiscene_20261110_100501/control/checkpoint-step-5400",
+      "step": 5400
+    },
+    {
+      "arm": "span5to20",
+      "run": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_c2w_fresh_20261107_230730_span5to20_bs12",
+      "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_multiscene_20261110_100501/span5to20/checkpoint-step-5400",
+      "step": 5400
+    },
+    {
+      "arm": "span5to35",
+      "run": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_c2w_fresh_20261107_230730_span5to35_bs12",
+      "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_multiscene_20261110_100501/span5to35/checkpoint-step-5400",
+      "step": 5400
+    },
+    {
+      "arm": "span10to35",
+      "run": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_c2w_fresh_20261107_230730_span10to35_bs12",
+      "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/span_multiscene_20261110_100501/span10to35/checkpoint-step-5400",
+      "step": 5400
+    }
+  ],
+  "manifest": "/mnt/sfs_turbo/t00845730/re10k/manifest_test_c2w_v1.jsonl",
+  "cache": "re10k_test",
+  "seed": 1234,
+  "steps": 25,
+  "targets_per_scene": 15,
+  "sources": 6,
+  "train_test_disjoint": true,
+  "previous_diagnostic_scene_excluded": true
+}

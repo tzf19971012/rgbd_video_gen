@@ -44,6 +44,9 @@ from .WanGeoColorNVSTrainingModule import WanGeoColorNVSTrainingModule
 
 class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
     def __init__(self, *args, **kwargs):
+        self.geo_patch1 = kwargs.get("gae_patch_mode", "native") == "patch1"
+        if self.geo_patch1:
+            kwargs["gae_patch_mode"] = "native"
         super().__init__(*args, **kwargs)
 
         # Replace the v1 80-channel merged conv with TWO per-modality patch
@@ -96,6 +99,32 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
                 else:
                     torch.nn.init.zeros_(dit.color_patch_embedding.bias)
 
+        if self.geo_patch1:
+            from diffsynth.models.wan_video_dit import Head
+            old_geo = dit.patch_embedding
+            dit.patch_embedding = torch.nn.Conv3d(geo_c, dim, kernel_size=1, stride=1,
+                bias=old_geo.bias is not None).to(old_geo.weight)
+            torch.nn.init.kaiming_normal_(dit.patch_embedding.weight, nonlinearity="linear")
+            if dit.patch_embedding.bias is not None:
+                torch.nn.init.zeros_(dit.patch_embedding.bias)
+            dit.head = Head(dim, geo_c, (1,1,1), eps=1e-6).to(old_geo.weight)
+
+        # Separate camera blocks: preserve each latent projection and initialize
+        # only the appended ray weights to zero (identical output at step zero).
+        if self.view_condition_mode == "concat":
+            for attr, encoder in (("patch_embedding", self.view_condition_encoder),
+                                  ("color_patch_embedding", self.view_condition_encoder_rgb)):
+                old = getattr(dit, attr)
+                wide = torch.nn.Conv3d(old.in_channels + encoder.plucker_channels,
+                    old.out_channels, old.kernel_size, stride=old.stride,
+                    padding=old.padding, bias=old.bias is not None).to(old.weight)
+                with torch.no_grad():
+                    wide.weight.zero_()
+                    wide.weight[:, :old.in_channels].copy_(old.weight)
+                    if old.bias is not None: wide.bias.copy_(old.bias)
+                setattr(dit, attr, wide)
+            self.accelerator.print(f"[dual-concat] geo={dit.patch_embedding.in_channels}ch color={dit.color_patch_embedding.in_channels}ch; ray slices zero-init")
+
         # Grids: the geometry stream works on its OWN padded native grid
         # (loader output, e.g. 28x48 = (27,48) padded even), the color stream
         # on the Wan/DiT grid (48x84).  Token counts per view after (1,2,2):
@@ -103,8 +132,9 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
         self.color_work_grid = tuple(self.dit_latent_hw)
         gh, gw = self.geo_work_grid
         ch, cw = self.color_work_grid
-        self.geo_tokens_per_view = (gh // 2) * (gw // 2)
+        self.geo_tokens_per_view = gh * gw if self.geo_patch1 else (gh // 2) * (gw // 2)
         self.color_tokens_per_view = (ch // 2) * (cw // 2)
+        self.accelerator.print(f"[tokenization] geometry patch={dit.patch_embedding.kernel_size}, head={dit.head.patch_size}, color patch={dit.color_patch_embedding.kernel_size}")
         self.accelerator.print(
             f"[geo-color-token] patch_embedding -> Conv3d({geo_c}, {dim}) "
             f"(fresh) on geo grid {self.geo_work_grid} "
@@ -123,7 +153,7 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
         have to run the loader to know its own shapes.
         """
         h0, w0 = self.geo_true_grid
-        return (h0 + h0 % 2, w0 + w0 % 2)
+        return (h0, w0) if self.geo_patch1 else (h0 + h0 % 2, w0 + w0 % 2)
 
     # -- input assembly -------------------------------------------------------
 
@@ -140,7 +170,10 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
         height = data["images"].shape[-2]
         width = data["images"].shape[-1]
 
-        z_geo = self._load_cached_latents(data)    # [B, 64, V, 28, 48], standardized
+        z_geo = self._load_cached_latents(data)    # native parent may pad odd rows
+        if self.geo_patch1:
+            h0, w0 = self.geo_true_grid
+            z_geo = z_geo[..., :h0, :w0]
         z_color = self._load_cached_wan_latents(data)  # [B, 16, V, dh, dw]
 
         context = self._null_text_embed.to(
@@ -166,10 +199,24 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
             latent_height=h0, latent_width=w0,
             pixel_K=K, pixel_height=height, pixel_width=width,
         )
-        plucker_color = self.view_condition_encoder.plucker_field(
+        # The color field must be rasterised by the COLOR stream's encoder --
+        # when the streams use different plucker resolutions (geo=pixel,
+        # color=latent) the geo encoder's pixel_mode scale check would reject
+        # the Wan color grid, and even in matching modes this is the encoder
+        # whose field the forward below consumes.
+        # Color latent grid is resampled to 48x84. Build rays on a matching
+        # virtual pixel grid (384x672 at scale8), scaling K to preserve FOV.
+        color_pixel_h, color_pixel_w = height, width
+        color_pixel_K = K
+        if self.view_condition_encoder_rgb.plucker_resolution == "pixel":
+            scale = self.view_condition_encoder_rgb.pixel_scale
+            color_pixel_h, color_pixel_w = dh * scale, dw * scale
+            color_pixel_K = self.view_condition_encoder_latent_K(
+                K, color_pixel_h, color_pixel_w, height, width)
+        plucker_color = self.view_condition_encoder_rgb.plucker_field(
             latent_K_color, c2w_rel,
             latent_height=dh, latent_width=dw,
-            pixel_K=K, pixel_height=height, pixel_width=width,
+            pixel_K=color_pixel_K, pixel_height=color_pixel_h, pixel_width=color_pixel_w,
         )
         enc_geo = dict(
             latent_height=h0, latent_width=w0,
@@ -178,7 +225,7 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
         )
         enc_color = dict(
             latent_height=dh, latent_width=dw,
-            pixel_K=K, pixel_height=height, pixel_width=width,
+            pixel_K=color_pixel_K, pixel_height=color_pixel_h, pixel_width=color_pixel_w,
             plucker=plucker_color,
         )
         vc_geo = self.view_condition_encoder(
@@ -189,6 +236,11 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
         vc_color = self.view_condition_encoder_rgb(
             latent_K_color, c2w_rel, view_roles, **enc_color
         ).to(dtype=z_color.dtype)                  # [B, 16, V, dh, dw]
+
+        camera_geo = camera_color = None
+        if self.view_condition_mode == "concat":
+            camera_geo, camera_color = vc_geo, vc_color
+            vc_geo, vc_color = torch.zeros_like(z_geo), torch.zeros_like(z_color)
 
         inputs = {
             "context": context,
@@ -201,6 +253,8 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
             "cfg_merge": False,
             "use_gradient_checkpointing": self.use_gradient_checkpointing,
             "use_gradient_checkpointing_offload": self.use_gradient_checkpointing_offload,
+            "camera_geo": camera_geo,
+            "camera_color": camera_color,
             "geo_gt": z_geo,
             "color_gt": z_color,
             "vc_geo": vc_geo,
@@ -244,6 +298,9 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
         color[:, :, s:] = (
             noisy_color[:, :, s:].to(color.dtype) + inputs["vc_color"][:, :, s:]
         )
+        if inputs.get("camera_geo") is not None:
+            geo = torch.cat([geo, inputs["camera_geo"].to(geo.dtype)], dim=1)
+            color = torch.cat([color, inputs["camera_color"].to(color.dtype)], dim=1)
         return geo, color
 
     def _forward_model(self, inputs, flow_input, timestep):
@@ -266,7 +323,8 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
         context = dit.text_embedding(inputs["context"])
 
         b, _, f = geo_in.shape[:3]
-        gh2, gw2 = self.geo_work_grid[0] // 2, self.geo_work_grid[1] // 2
+        geo_patch = 1 if self.geo_patch1 else 2
+        gh2, gw2 = self.geo_work_grid[0] // geo_patch, self.geo_work_grid[1] // geo_patch
         ch2, cw2 = self.color_work_grid[0] // 2, self.color_work_grid[1] // 2
 
         # Separate patchify: each modality projects to the shared 1536-d token
@@ -334,7 +392,10 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
         hs_c = hs[:, :, n_g:].reshape(b, f * n_c, -1)
 
         pred_geo = dit.head(hs_g, t)                  # [B, V*n_g, 64*4]
-        pred_geo = dit.unpatchify(pred_geo, (f, gh2, gw2))
+        pred_geo = rearrange(pred_geo,
+            "b (f h w) (ph pw c) -> b c f (h ph) (w pw)",
+            f=f, h=gh2, w=gw2, ph=geo_patch, pw=geo_patch,
+            c=self.gae_latent_channels)
         pred_color = dit.rgb_head(hs_c, t)            # [B, V*n_c, 16*4]
         pred_color = dit.unpatchify(pred_color, (f, ch2, cw2))
         return pred_geo, pred_color
@@ -352,10 +413,9 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
         v_target_geo = noise_geo - geo_gt
         v_target_color = noise_color - color_gt
 
+        # Weight only the loss-space residual; model inputs and ODE velocities
+        # remain in the same standardized latent coordinates at train/eval.
         w = self.color_loss_weight ** 0.5
-        if w != 1.0:
-            x_t_color = x_t_color * w
-            v_target_color = v_target_color * w
 
         timestep = (
             sigma.reshape(batch_size) * self.pipe.scheduler.num_train_timesteps
@@ -394,8 +454,8 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
             "color_mse": color_mse.detach(),
         }
         return {
-            "pred": [pred_geo, pred_color],
-            "rgb_gt": [v_target_geo, v_target_color],
+            "pred": [pred_geo, pred_color * w],
+            "rgb_gt": [v_target_geo, v_target_color * w],
             "loss_masks": inputs["loss_masks"],
             "weight": 1.0,
             "sigma": sigma.reshape(batch_size),
@@ -406,7 +466,7 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
     # -- sampling ---------------------------------------------------------------
 
     @torch.no_grad()
-    def sample_latents(self, inputs=None, num_steps=None, generator=None):
+    def sample_latents(self, inputs=None, num_steps=None, generator=None, shared_target_noise=False):
         """Euler-integrate BOTH target streams; source slots stay clean."""
         if inputs is None:
             raise ValueError("geo/color sampling needs forward_preprocess inputs")
@@ -422,9 +482,11 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
                          generator=generator)
         xc = torch.randn(z_color.shape, device=z_color.device, dtype=z_color.dtype,
                          generator=generator)
+        if shared_target_noise:
+            xg[:, :, s:] = xg[:, :, s:s+1].expand_as(xg[:, :, s:]).clone()
+            xc[:, :, s:] = xc[:, :, s:s+1].expand_as(xc[:, :, s:]).clone()
         xg[:, :, :s] = z_geo[:, :, :s]
         xc[:, :, :s] = z_color[:, :, :s]
-        w = self.color_loss_weight ** 0.5
         for i in range(num_steps):
             timestep = (
                 sigmas[i] * self.pipe.scheduler.num_train_timesteps
@@ -435,7 +497,7 @@ class WanGeoColorTokenNVSTrainingModule(WanGeoColorNVSTrainingModule):
             )
             dt = sigmas[i] - sigmas[i + 1]
             xg[:, :, s:] = xg[:, :, s:] - dt * vg[:, :, s:].to(xg.dtype)
-            xc[:, :, s:] = xc[:, :, s:] - dt * (vc[:, :, s:] / w).to(xc.dtype)
+            xc[:, :, s:] = xc[:, :, s:] - dt * vc[:, :, s:].to(xc.dtype)
             xg[:, :, :s] = z_geo[:, :, :s]
             xc[:, :, :s] = z_color[:, :, :s]
         # Crop the geo stream to the true grid before anything downstream

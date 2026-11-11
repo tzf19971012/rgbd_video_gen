@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "scene_disjoint": true,
+  "train_scenes": 256,
+  "val_scenes": 16,
+  "test_scenes": 32,
+  "context_views": 4,
+  "depth_used_only_for_supervision": true
+}

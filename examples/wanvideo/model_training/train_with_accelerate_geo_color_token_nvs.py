@@ -216,6 +216,7 @@ def main():
         gae_cache_root=cfg.get("gae_cache_root"),
         gae_dataset_name=cfg.get("gae_dataset_name", "bmvs"),
         gae_stats_path=cfg.get("gae_stats_path", None),
+        gae_patch_mode=cfg.get("gae_patch_mode", "native"),
         gae_rope_frame_axis=cfg.get("gae_rope_frame_axis", "view"),
         gae_auto_flow_shift=cfg.get("gae_auto_flow_shift", True),
         gae_codec_device=cfg.get("gae_codec_device", None),
@@ -300,13 +301,18 @@ def main():
     other_params = [p for p in model.trainable_modules()
                     if id(p) not in fresh_ids]
     param_groups = [{"params": other_params, "lr": cfg.learning_rate}]
-    if fresh_params and fresh_lr_mult != 1.0:
+    if fresh_params:
         param_groups.append(
             {"params": fresh_params, "lr": cfg.learning_rate * fresh_lr_mult})
     accelerator.print(
         f"[opt] fresh_lr_mult={fresh_lr_mult}  fresh={sum(p.numel() for p in fresh_params)} "
         f"other={sum(p.numel() for p in other_params)}  "
         f"lr={cfg.learning_rate} / {cfg.learning_rate * fresh_lr_mult}")
+    # Every trainable parameter must occur exactly once, including at 1x LR.
+    grouped_ids = [id(p) for group in param_groups for p in group["params"]]
+    expected_ids = {id(p) for p in model.trainable_modules()}
+    if len(grouped_ids) != len(set(grouped_ids)) or set(grouped_ids) != expected_ids:
+        raise RuntimeError("Optimizer groups omit or duplicate trainable parameters")
     try:
         optimizer = torch.optim.AdamW(param_groups, fused=True)
     except (RuntimeError, ValueError):

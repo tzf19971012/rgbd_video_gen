@@ -1,0 +1,31 @@
+{
+  "arms": {
+    "multiview_latent": {
+      "card": 3,
+      "steps": 10000
+    },
+    "multiview_dit": {
+      "card": 4,
+      "steps": 10000
+    }
+  },
+  "feature_extractor": {
+    "card": 4,
+    "layers": [
+      9,
+      19,
+      29
+    ],
+    "timestep": 0,
+    "cache_before_training": true
+  },
+  "baseline": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/wan_pretrained_depth_decoder_20261111_104120",
+  "groups": {
+    "train": 512,
+    "val": 16,
+    "test": 32
+  },
+  "input_depth": false,
+  "stage4": "deferred by user",
+  "note": "Fixed clean-latent t0 pretrained DiT probe; not features from the current GAE generator; not full inference-time variable sweep."
+}

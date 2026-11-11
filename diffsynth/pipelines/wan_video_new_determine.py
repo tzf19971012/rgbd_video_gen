@@ -1590,6 +1590,7 @@ def model_fn_wan_video(
     rope_frame_ids=None,
     rope_pose_matrices=None,
     roce_camera_latents=None,
+    plucker_6d=None,
     **kwargs,
 ):
     if sliding_window_size is not None and sliding_window_stride is not None:
@@ -1827,6 +1828,7 @@ def model_fn_wan_video(
                         None,
                         cape,
                         roce_cam_emb,
+                        plucker_6d,
                         use_reentrant=False,
                     )
             elif use_gradient_checkpointing:
@@ -1839,12 +1841,14 @@ def model_fn_wan_video(
                     None,
                     cape,
                     roce_cam_emb,
+                    plucker_6d,
                     use_reentrant=False,
                 )
             else:
                 latents = block(
                     latents, context, t_mod, freqs,
                     cape=cape, roce_cam_emb=roce_cam_emb,
+                    plucker_6d=plucker_6d,
                 )
 
             if vace_context is not None and idx in vace.vace_layers_mapping:

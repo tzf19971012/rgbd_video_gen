@@ -51,6 +51,11 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         camera_drop_prob=0.0,
         ref_drop_prob=0.0,
         eval_cfg_scale=1.0,
+        gae_plucker_flip_pe=False,
+        gae_plucker_pe_mlp_hidden=64,
+        gae_plucker_pe_scale=1.0,
+        gae_plucker_pe_log_scale_aug_prob=0.3,
+        gae_plucker_pe_log_scale_aug_range=(-1.2, 1.6),
         **kwargs,
     ):
         # Force the configuration this module is written for before the parent
@@ -143,6 +148,28 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         # weight) -- the model collapses to the conditional mean and every
         # sample comes out blurry.
         self.v_loss_t_eps = float(v_loss_t_eps)
+
+        # GAE-faithful camera injection: per-block Plücker Flip PE on Q/K
+        # (camera.py PluckerFlipPE_V13 port).  When enabled the input-side
+        # camera field is DISABLED -- the ray map enters ONLY through the
+        # per-block Q/K PE, exactly like GAE PluckerAttention.
+        self.gae_plucker_flip_pe = bool(gae_plucker_flip_pe)
+        if self.gae_plucker_flip_pe:
+            self.pipe.dit.enable_plucker_pe(
+                mlp_hidden=int(gae_plucker_pe_mlp_hidden),
+                init="zero",
+                scale=float(gae_plucker_pe_scale),
+                log_scale_aug_prob=float(gae_plucker_pe_log_scale_aug_prob),
+                log_scale_aug_range=tuple(gae_plucker_pe_log_scale_aug_range),
+            )
+            n_pe = sum(p.numel() for p in self.pipe.dit.plucker_pe_parameters())
+            for p in self.pipe.dit.plucker_pe_parameters():
+                p.requires_grad = True
+            self.accelerator.print(
+                f"[gae] Plucker Flip PE ENABLED: per-block Q/K geometric PE "
+                f"({n_pe / 1e6:.2f}M new params, zero-init), input-side camera "
+                "field disabled (ray map rides per-layer attention only)"
+            )
 
         # CFG condition dropout (GAE flow_gae128 protocol: camera_drop 0.2,
         # ref_drop_prob 0.2).  Zeroing both probabilities restores the old
@@ -288,6 +315,12 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
         for module in (self.pipe.dit.patch_embedding, self.pipe.dit.head):
             for param in module.parameters():
                 param.requires_grad = True
+        # The Plücker Flip PE branch is created in __init__, i.e. BEFORE the
+        # base freeze pass in set_training_param re-freezes every non-LoRA
+        # parameter -- re-unfreeze it here or the PE stays decorative forever
+        # (zero-init output layers would then never receive gradients).
+        for param in self.pipe.dit.plucker_pe_parameters():
+            param.requires_grad = True
 
     def _needs_extra_input_channels(self):
         return False
@@ -415,17 +448,35 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
             pixel_height=height,
             pixel_width=width,
         )
-        view_condition = self.view_condition_encoder(
-            latent_K,
-            c2w_rel,
-            view_roles,
-            latent_height=latent_height,
-            latent_width=latent_width,
-            pixel_K=K,
-            pixel_height=height,
-            pixel_width=width,
-            plucker=plucker_field,
-        ).to(dtype=z.dtype)                          # [B, C, V, h, w] ("add")
+        plucker_6d_tokens = None
+        if self.gae_plucker_flip_pe:
+            # GAE-faithful path: the ray map rides ONLY through the per-block
+            # Q/K PE -- the input-side camera field is zeroed and the encoder
+            # backbone is skipped entirely.  Token order (v, h, w) matches the
+            # DiT sequence layout (rope_frame_axis=view => frame == view).
+            field = plucker_field.to(device=z.device, dtype=z.dtype)
+            # ViewConditionEncoder emits (moment, direction); GAE FlipPE
+            # consumes (direction, moment). Reorder only this branch.
+            if field.shape[2] != 6:
+                raise ValueError("FlipPE requires a latent-grid 6-channel ray field")
+            field = torch.cat([field[:, :, 3:], field[:, :, :3]], dim=2)
+            v_n, c_p = field.shape[1], field.shape[2]
+            plucker_6d_tokens = field.permute(
+                0, 1, 3, 4, 2).reshape(
+                field.shape[0], v_n * field.shape[3] * field.shape[4], c_p)
+            view_condition = torch.zeros_like(z)
+        else:
+            view_condition = self.view_condition_encoder(
+                latent_K,
+                c2w_rel,
+                view_roles,
+                latent_height=latent_height,
+                latent_width=latent_width,
+                pixel_K=K,
+                pixel_height=height,
+                pixel_width=width,
+                plucker=plucker_field,
+            ).to(dtype=z.dtype)                          # [B, C, V, h, w]
         if view_condition.shape[-2:] != z.shape[-2:]:
             view_condition = F.pad(
                 view_condition, (0, z.shape[-1] - view_condition.shape[-1],
@@ -464,6 +515,9 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
             # Only set in mode="concat": appended as its own channel block in
             # _build_flow_input instead of being summed in.
             "plucker_block": plucker_block,
+            # GAE Plücker Flip PE: per-pixel ray tokens consumed by every
+            # block's self-attention Q/K (None unless the PE flag is on).
+            "plucker_6d": plucker_6d_tokens,
             "gae_latents": z,        # clean, standardized, unconditioned
             # Targets / metadata
             "rgb_gt": z,
@@ -514,6 +568,15 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
                 cam_drop = torch.rand(batch_size, device=dev) < self.camera_drop_prob
             if self.ref_drop_prob > 0:
                 ref_drop = torch.rand(batch_size, device=dev) < self.ref_drop_prob
+        if cam_drop is not None and inputs.get("plucker_6d") is not None:
+            # Plücker Flip PE mode: the camera rides per-block Q/K via this
+            # tensor, which reaches the DiT through model_fn kwargs (NOT
+            # through _build_flow_input's returned latent) -- strip it HERE
+            # so the unconditional branch is truly camera-free.
+            mp = cam_drop.reshape(-1, 1, 1).to(inputs["plucker_6d"].dtype)
+            inputs["plucker_6d"] = torch.where(
+                mp > 0.5,
+                torch.zeros_like(inputs["plucker_6d"]), inputs["plucker_6d"])
 
         pred = self._forward_model(
             inputs,
@@ -617,7 +680,8 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
     # -- sampling -------------------------------------------------------------
 
     @torch.no_grad()
-    def sample_latents(self, inputs, num_steps=None, generator=None, cfg_scale=None):
+    def sample_latents(self, inputs, num_steps=None, generator=None, cfg_scale=None,
+                       shared_target_noise=False):
         """Euler-integrate the target-view slots; source slots stay clean.
 
         cfg_scale > 1 enables classifier-free guidance: each step runs an
@@ -644,6 +708,18 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
             return (x_cur - out) / sig
 
         x = torch.randn(z.shape, device=z.device, dtype=z.dtype, generator=generator)
+        if shared_target_noise and z.shape[2] > s:
+            # Inference-only temporal-consistency aid: every target slot starts
+            # from the SAME noise field instead of iid draws.  The conditional
+            # distribution per frame is multimodal (render the requested pose
+            # vs collapse to the dominant source frame); iid init lets adjacent
+            # frames pick DIFFERENT modes -> one frame right, next frame a
+            # source copy.  A shared field correlates the mode choice, which is
+            # what a trajectory video needs.  Training is untouched (flag off).
+            x = torch.cat(
+                [x[:, :, :s],
+                 x[:, :, s:s + 1].expand(-1, -1, z.shape[2] - s, -1, -1)],
+                dim=2).contiguous()
         x[:, :, :s] = z[:, :, :s]
         for i in range(num_steps):
             timestep = (
@@ -673,6 +749,11 @@ class WanGAENVSTrainingModule(WanRGBDNVSTrainingModule):
                     # the unconditional branch must strip it too.
                     uncond_inputs["plucker_block"] = torch.zeros_like(
                         inputs["plucker_block"])
+                if inputs.get("plucker_6d") is not None:
+                    # Plücker Flip PE mode: the camera rides per-block Q/K;
+                    # the unconditional branch strips the ray tokens too.
+                    uncond_inputs["plucker_6d"] = torch.zeros_like(
+                        inputs["plucker_6d"])
                 v_uncond = _to_velocity(
                     self._forward_model(
                         uncond_inputs,

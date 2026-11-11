@@ -595,6 +595,12 @@ class Kubric4DRGBDNVSDataset(Dataset):
         # the source time interval (interp-heavy).  0.2 reproduces the
         # VGGT-Diff 80/20 protocol; 1.0 makes EVERY target an interpolation,
         # the fast-convergence hypothesis arm.
+        self.camera_span_prob = float(kwargs.get("camera_span_prob", 0.0))
+        self.camera_span_min_deg = float(kwargs.get("camera_span_min_deg", 5.0))
+        self.camera_span_max_deg = float(kwargs.get("camera_span_max_deg", 35.0))
+        self.camera_span_stats = {"attempted": 0, "accepted": 0, "fallback": 0}
+        if not 0 <= self.camera_span_prob <= 1 or not 0 <= self.camera_span_min_deg < self.camera_span_max_deg <= 180:
+            raise ValueError("Invalid camera span sampling settings")
         self.video_tgt_interval_prob = float(video_tgt_interval_prob)
         if not 0.0 <= self.video_tgt_interval_prob <= 1.0:
             raise ValueError(
@@ -879,6 +885,22 @@ class Kubric4DRGBDNVSDataset(Dataset):
                     f"{self.num_target_views} target views from {len(views)} views."
                 )
             return result
+
+        # Training only: frozen evaluation retains its original selection.
+        if self.deterministic_view_seed is None and self.camera_span_prob > 0 and rng.random() < self.camera_span_prob:
+            from .camera_span_sampling import sample_camera_span
+            stats = self.camera_span_stats
+            stats["attempted"] += 1
+            result = sample_camera_span(views, self.num_source_views, self.num_target_views, rng,
+                                        self.camera_span_min_deg, self.camera_span_max_deg)
+            if result is not None:
+                stats["accepted"] += 1
+            else:
+                stats["fallback"] += 1
+            if stats["attempted"] % 100 == 0:
+                print(f"[camera-span worker] {stats}", flush=True)
+            if result is not None:
+                return result
 
         target_views = rng.sample(views, self.num_target_views)
         remaining = [view for view in views if view not in target_views]

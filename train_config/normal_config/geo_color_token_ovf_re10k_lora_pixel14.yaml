@@ -1,0 +1,122 @@
+# =============================================================================
+# 实验五 — geo/color 双流 v3:token 级合并(分离 patchify)
+#
+# 相对 v1(geo_color_ovf_re10k_lora.yaml,即 logs/ovf_geocolor_re10k_lora_20261102_104836
+# 那次运行)的唯一改动 = 两条流的合并方式,其余协议逐位一致,可直接配对比较:
+#
+#   v1: cat([x_geo(64), x_color(16)], dim=1) -> Conv3d(80,1536) 通道拼接,
+#       几何 latent 被迫 bicubic 上采样 27x48 -> 48x84 凑同一网格;
+#   v3: geo 用自己的 Conv3d(64,1536,(1,2,2)) 在原生网格 28x48 patchify
+#       (14x24=336 tok/帧),color 用自己的 Conv3d(16,1536,(1,2,2)) 在
+#       48x84 patchify(24x42=1008 tok/帧)——各自投影到同一 1536 维 token
+#       空间后,按帧拼成 1344 tok/帧 的序列进原封不动的 DiT,跨模态融合交给
+#       self-attention;RoPE 按模态分块构建(帧轴共享 view id,h/w 轴各用
+#       自己网格)。两个速度头各读各的 token 段,unpatchify 回各自 latent
+#       网格,FM loss 仍在 latent 空间按流算(与 v1 完全同一定义)。
+#       种子策略同 v1:color conv + rgb_head 复制 pretrained Wan2.1 投影;
+#       geo conv + geo head kaiming 从零。序列开销 1344 vs 1008 tok/帧。
+#
+# 注:若两条流在同一网格 patchify 后逐 token 相加,数学上严格等价于 v1 的
+# 80ch conv(conv 对输入通道线性,可拆分),故 v3 的真实差异 = 各模态独立
+# 投影 + 几何流不再离开原生网格(去掉 27x48->48x84 bicubic)。
+#
+# 判据(同 8 场景、同 eval 25 步 shift 4.5、同 seed、同 8050 步):
+#   * 对比 v1 同步数:LPIPS / PSNR / depth 指标是否更好
+#   * 观察 geo_mse 下降速度(geo token 占比 336/1344,警惕 color 流主导)
+# =============================================================================
+
+wan_model_root: "/mnt/sfs_turbo/t00845730/wan21"
+skip_download: true
+output_path: "logs/ovf_geocolor_token_re10k_lora_pixel14"
+
+model_id_with_origin_paths: "Wan-AI/Wan2.1-T2V-1.3B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-T2V-1.3B:Wan2.1_VAE.pth"
+trainable_models: "dit"
+remove_prefix_in_ckpt: "pipe.dit"
+mode: regression
+denoise_step: 0.5
+
+# --- geo latent backend（同 v1）-----------------------------------------------
+gae_cache_root: "/mnt/sfs_turbo/t00845730/gae_latent_cache"
+gae_dataset_name: "re10k_train"
+gae_stats_path: null
+gae_rope_frame_axis: "view"
+gae_auto_flow_shift: false
+rgb_flow_shift: 4.5
+vae_encoding_mode: "independent"
+
+# --- 相机注入（对照 013643 运行的变量组：latent@6ch -> pixel@1176ch）-----------
+# 013643 运行 args 缺失 view_condition_* 全部吃了默认 add+latent(6ch)，
+# Plücker 射线场被降采样 + CNN 瓶颈 → 相机跟随几乎没学会（traj d1≈0.45）。
+# 本臂移植 GAE 冠军配方的无损栅格化：pixel 分辨率 Plücker（PixelUnshuffle,
+# 6*14^2=1176ch）+ fresh 层 5x lr。注入方式保持 add（geocolor 双流模块
+# 无 concat 接线；addpixel 实验已证明 pixel 无损栅格化是赢家，注入方式次要）。
+view_condition_mode: "add"
+view_condition_plucker_resolution: "pixel"
+view_condition_pixel_scale: 14
+# color 流(Wan 网格 48x84)与 pixel 分辨率无整数倍关系(47.25 行 -> pad 48),
+# pixel 模式数学上不成立;color 条件器保留 latent 分辨率,geo 流吃满 pixel@14
+view_condition_plucker_resolution_rgb: "latent"
+view_condition_use_role: true
+view_condition_normalize_moment: false
+fresh_layer_lr_mult: 5.0
+
+# --- sigma 采样（同 v1，无覆盖 = 默认 logit_normal(0,1)，与 20261102 运行一致）--
+# --- 解码端 aux loss：双流关闭 ------------------------------------------------
+gae_rgb_loss_weight: 0.0
+gae_rgb_t_max: 0.6
+gae_rgb_max_views: 1
+
+# --- color latent backend（同 v1）---------------------------------------------
+wan_latent_cache_root: "/mnt/sfs_turbo/t00845730/wan_latent_cache"
+wan_latent_dataset_name: "re10k_ovf8_wan"
+wan_latent_stats_path: null
+color_loss_weight: 1.0
+
+# --- training（同 v1：2 卡 x bs4 = 有效 batch 8）--------------------------------
+train_all: false
+lora_base_model: "dit"
+lora_rank: 128
+lora_target_modules: "q,k,v,o,ffn.0,ffn.2"
+learning_rate: 1.0e-4
+warmup_steps: 0
+gradient_accumulation_steps: 1
+batch_size: 4
+num_epochs: 1000000
+max_steps: 8050
+mixed_precision: "bf16"
+use_gradient_checkpointing: true
+use_gradient_checkpointing_offload: false
+clip_grad_norm: true
+log_step: 10
+validate_step: 400
+resume: false
+training_state_dir: "na"
+global_step: 0
+seed: 42
+
+# --- views（同 v1）-------------------------------------------------------------
+num_source_views: 6
+num_target_views: 3
+random_permute_source_views: true
+view_order: "random"
+
+# --- resolution (378x672: geo 网格 27x48(补偶 28x48)，Wan 网格 47x84->48x84) ----
+resolution: [378, 672]
+
+# --- data: RealEstate10K overfit subset（与 v1 相同的 8 场景）-------------------
+kubric4d_root: "/mnt/sfs_turbo/t00845730/re10k/extracted"
+manifest_path: "/mnt/sfs_turbo/t00845730/re10k/manifest_train.jsonl"
+disparity_norm_mode: "metric"
+min_view_valid_fraction: 0.0
+samples_per_scene: 8
+num_train_samples: 8
+dataloader_num_workers: 4
+
+# --- eval（同 v1）---------------------------------------------------------------
+eval_max_samples: 8
+eval_batch_size: 2
+eval_view_seed: 1234
+eval_num_inference_steps: 25
+eval_lpips_net: "alex"
+eval_sample_seed: 1234
+max_checkpoints: 6
