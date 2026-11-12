@@ -37,6 +37,17 @@
       "learning_rate": 3e-05,
       "checks": "shell syntax,rendered login shell,node0/node1 dry-run,BS fallback override,checkpoint files and GAE adapter",
       "recorded_at": "2026-11-12 10:50:10 +0800"
+    },
+    {
+      "experiment_id": "gae_projection_yundao_16npu_from8800",
+      "status": "prepared_not_launched",
+      "supersedes": "gae_projection_yundao_16npu_from8600",
+      "start_step": 8800,
+      "max_steps": 30000,
+      "batch_size": 8,
+      "world_size": 16,
+      "effective_batch": 128,
+      "recorded_at": "2026-11-12 11:23:09 +0800"
     }
   ]
 }

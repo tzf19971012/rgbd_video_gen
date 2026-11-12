@@ -7,12 +7,12 @@ assert all('=' in x for x in extra), 'Extra arguments must be key=value'
 cfg=OmegaConf.merge(OmegaConf.load(a.config),OmegaConf.from_dotlist(extra))
 assert a.world_size==16 and cfg.projection_condition=='gae'
 assert cfg.resume and not cfg.resume_weights_only
-assert cfg.max_steps==30000 and cfg.global_step==8600
+assert cfg.max_steps==30000 and cfg.global_step==int(Path(a.checkpoint).name.rsplit('-',1)[1])
 assert cfg.num_train_samples is None and cfg.scene_filter is None
 assert cfg.num_source_views==6 and cfg.num_target_views==3
 assert cfg.batch_size>=1 and cfg.gradient_accumulation_steps>=1
 assert str(Path(a.output_dir).resolve())!=str(Path('/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/projection_gae_3npu_resume_3card_20261110_110818').resolve()), 'Use a new cloud output directory'
-ck=Path(a.checkpoint);assert ck.name=='checkpoint-step-8600'
+ck=Path(a.checkpoint);assert ck.name.startswith('checkpoint-step-')
 for n in ['model.safetensors','optimizer.bin','scheduler.bin','random_states_0.pkl','random_states_1.pkl','random_states_2.pkl']:assert (ck/n).is_file(),n
 for n in ['optimizer.bin','scheduler.bin','random_states_0.pkl','random_states_1.pkl','random_states_2.pkl']:assert zipfile.is_zipfile(ck/n),n
 with (ck/'model.safetensors').open('rb') as f:
@@ -30,4 +30,4 @@ missing=[sid for sid in scenes if not (cache/(sid+'.meta.json')).is_file()];asse
 if a.check_hardware:
  import torch,torch_npu
  assert torch.npu.is_available() and torch.npu.device_count()>=a.local_processes
-print(json.dumps(dict(preflight_passed=True,world_size=a.world_size,checkpoint=str(ck),projection='gae',train_scenes=len(scenes),test_data_used=False,start_step=8600,max_steps=30000,additional_steps=21400,batch_size=cfg.batch_size,gradient_accumulation_steps=cfg.gradient_accumulation_steps,effective_batch=cfg.batch_size*cfg.gradient_accumulation_steps*a.world_size,learning_rate=cfg.learning_rate,fresh_layer_learning_rate=cfg.learning_rate*cfg.fresh_layer_lr_mult,output=a.output_dir,training_entry=str(code/'train.py'),optimizer_resume_mode="full state at training startup",checkpoint_files_validated=True,rng='reseed per rank after world-size change'),indent=2))
+print(json.dumps(dict(preflight_passed=True,world_size=a.world_size,checkpoint=str(ck),projection='gae',train_scenes=len(scenes),test_data_used=False,start_step=int(cfg.global_step),max_steps=30000,additional_steps=30000-int(cfg.global_step),batch_size=cfg.batch_size,gradient_accumulation_steps=cfg.gradient_accumulation_steps,effective_batch=cfg.batch_size*cfg.gradient_accumulation_steps*a.world_size,learning_rate=cfg.learning_rate,fresh_layer_learning_rate=cfg.learning_rate*cfg.fresh_layer_lr_mult,output=a.output_dir,training_entry=str(code/'train.py'),optimizer_resume_mode="full state at training startup",checkpoint_files_validated=True,rng='reseed per rank after world-size change'),indent=2))

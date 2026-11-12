@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ROMA projection-specific launcher, based on yundao_train_gae_patch1_re10k.sh.
 # Use yundao_resume_gae_projection_16npu.sh; it sets the frozen code,16 ranks,
-# full training manifest, pinned step8600 state and step30000 target.
+# full training manifest, pinned step8800 state and step30000 target.
 # Model/optimizer/scheduler resume; rank RNGs are reseeded after3->16 ranks.
 set -euo pipefail
 # Dedicated projection variant of yundao_train_gae_patch1_re10k.sh.
