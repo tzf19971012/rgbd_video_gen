@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-12",
+  "experiments": [
+    {
+      "experiment_id": "control_bs12_manual_stop",
+      "action": "manual_stop",
+      "reason": "user requested stopping lower-priority control baseline",
+      "time": "2026-11-12 09:58:22 +0800",
+      "pid": 2434464,
+      "process_group": 2434464,
+      "last_observed_training": {
+        "step": 9920,
+        "loss": 0.4641377031803131,
+        "seconds_since_last_measurement": 341.2582652498968,
+        "peak_allocated_gib": 44.53475618362427,
+        "peak_reserved_gib": 58.416015625,
+        "batch_size": 12,
+        "gradient_accumulation_steps": 1
+      },
+      "preserved_checkpoints": [
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/span_ablation_c2w_fresh_20261107_230730_control_bs12/checkpoint-step-9800"
+      ],
+      "stopped": true
+    },
+    {
+      "experiment_id": "gae_projection_yundao_16npu_from8600",
+      "status": "script_prepared_not_launched",
+      "entry_script": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/train_script/yundao_resume_gae_projection_16npu.sh",
+      "start_step": 8600,
+      "max_steps": 30000,
+      "world_size": 16,
+      "batch_size": 8,
+      "gradient_accumulation_steps": 1,
+      "effective_batch": 128,
+      "train_scenes": 7884,
+      "test_data_used": false,
+      "learning_rate": 3e-05,
+      "checks": "shell syntax,rendered login shell,node0/node1 dry-run,BS fallback override,checkpoint files and GAE adapter",
+      "recorded_at": "2026-11-12 10:50:10 +0800"
+    }
+  ]
+}
