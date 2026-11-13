@@ -1,0 +1,78 @@
+{
+  "dvd_dino_two_npu_bs4": {
+    "status": "first_update_verified",
+    "directory": "/mnt/sfs_turbo/DVD/experiments/dino_v11_resume_20261113/formal_vkitti_dino_2npu_bs4",
+    "launch": {
+      "pid": 2281764,
+      "cards": [
+        1,
+        4
+      ],
+      "world_size": 2,
+      "microbatch_clips_per_rank": 4,
+      "accumulation": 1,
+      "effective_batch_clips": 8,
+      "resume_step": 72,
+      "baseline_paused_step": 3,
+      "checkpoint": "/mnt/sfs_turbo/DVD/experiments/dino_v11_resume_20261113/formal_vkitti_dino/last.pt",
+      "learning_rate": 1e-05,
+      "launcher": "/mnt/sfs_turbo/DVD/experiments/dino_v11_resume_20261113/run_formal_dino_2npu_bs4.sh"
+    },
+    "transition": {
+      "source_checkpoint": "/mnt/sfs_turbo/DVD/experiments/dino_v11_resume_20261113/formal_vkitti_dino/last.pt",
+      "step": 72,
+      "old_world_size": 1,
+      "new_world_size": 2,
+      "old_effective_clips": 4,
+      "new_effective_clips": 8,
+      "microbatch_clips": 4,
+      "lr": 1e-05,
+      "optimizer_restored": true,
+      "note": "Rank0 RNG restored; new ranks receive distinct deterministic seeds. Physical topology and batch changed; not bitwise continuation. Explicit HCCL gradient averaging before clipping/AdamW."
+    },
+    "synchronization": {
+      "step": 74,
+      "world_size": 2,
+      "checks": "all trainable tensor means equal across ranks after optimizer update"
+    },
+    "rank_statuses": [
+      {
+        "pid": 2282255,
+        "arm": "dino",
+        "rank": 0,
+        "world_size": 2,
+        "microbatch_clips": 4,
+        "effective_clips": 8,
+        "status": "training",
+        "step": 74,
+        "loss": 0.14228807389736176,
+        "grad_norm": 0.0810546875,
+        "seconds": 64.15769386291504,
+        "session_steps": 2,
+        "peak_allocated_gib": 11.28839635848999
+      },
+      {
+        "pid": 2282256,
+        "arm": "dino",
+        "rank": 1,
+        "world_size": 2,
+        "microbatch_clips": 4,
+        "effective_clips": 8,
+        "status": "training",
+        "step": 74,
+        "loss": 0.14228807389736176,
+        "grad_norm": 0.0810546875,
+        "seconds": 66.26976871490479,
+        "session_steps": 2,
+        "peak_allocated_gib": 11.28839635848999
+      }
+    ],
+    "data": "VKITTI only phase; TartanAir/Hypersim mixing pending separate experiment",
+    "baseline": "paused at3 updates"
+  },
+  "discussion_archive": {
+    "record": "2026-11-14_discussion.json",
+    "readable": "2026-11-14_discussion.html",
+    "updated_on": "2026-11-14"
+  }
+}

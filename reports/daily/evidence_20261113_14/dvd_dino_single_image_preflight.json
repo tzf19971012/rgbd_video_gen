@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "pid": 1790027,
+  "checkpoint": "dvd_1.1.safetensors",
+  "strict_load": "<All keys matched successfully>",
+  "zero_initialization_max_error": 0.0,
+  "loss": 0.057103898376226425,
+  "adapter_output_grad_norm": 0.1611879440024495,
+  "lora_grad_norm": 7.332589483756458,
+  "frozen_dino_no_grad": true,
+  "vae_frozen": true,
+  "merged_lora": false,
+  "trainable_parameters": 700918656,
+  "peak_allocated_gib": 10.33298635482788,
+  "scope": "one image192x320 VKITTI supervised latent-MSE optimizer-step smoke test; not full training and not a DINO benefit test; video temporal alignment still pending"
+}

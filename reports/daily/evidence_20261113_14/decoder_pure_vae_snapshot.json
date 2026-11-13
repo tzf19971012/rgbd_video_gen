@@ -1,0 +1,158 @@
+{
+  "snapshot_utc": "2026-11-13T17:17:06Z",
+  "experiments": {
+    "re10k": {
+      "status": {
+        "status": "training",
+        "pid": 3645802,
+        "step": 4520,
+        "loss": 0.08024237304925919,
+        "grad_norm": 1.20128333568573,
+        "seconds": 25558.902827739716,
+        "steps_this_session": 4520,
+        "batch_groups": 2,
+        "effective_depth_views": 32,
+        "peak_allocated_gib": 13.797927856445312
+      },
+      "validation": [
+        {
+          "step": 500,
+          "re10k_group_absrel": 0.34048752300441265,
+          "vkitti_group_absrel": 0.41482536774128675
+        },
+        {
+          "step": 1000,
+          "re10k_group_absrel": 0.3091266341507435,
+          "vkitti_group_absrel": 0.3513950128108263
+        },
+        {
+          "step": 1500,
+          "re10k_group_absrel": 0.29952584113925695,
+          "vkitti_group_absrel": 0.42165794037282467
+        },
+        {
+          "step": 2000,
+          "re10k_group_absrel": 0.29952911101281643,
+          "vkitti_group_absrel": 0.41786203254014254
+        },
+        {
+          "step": 2500,
+          "re10k_group_absrel": 0.30801656283438206,
+          "vkitti_group_absrel": 0.34261626983061433
+        },
+        {
+          "step": 3000,
+          "re10k_group_absrel": 0.2943520685657859,
+          "vkitti_group_absrel": 0.3650776552967727
+        },
+        {
+          "step": 3500,
+          "re10k_group_absrel": 0.2851019315421581,
+          "vkitti_group_absrel": 0.35208436753600836
+        },
+        {
+          "step": 4000,
+          "re10k_group_absrel": 0.2841342184692621,
+          "vkitti_group_absrel": 0.368042784743011
+        },
+        {
+          "step": 4500,
+          "re10k_group_absrel": 0.3006341541185975,
+          "vkitti_group_absrel": 0.4317690930329263
+        }
+      ]
+    },
+    "vkitti": {
+      "status": {
+        "status": "training",
+        "pid": 3645803,
+        "step": 3320,
+        "loss": 0.012664868729189038,
+        "grad_norm": 0.4669948220252991,
+        "seconds": 25557.31616973877,
+        "steps_this_session": 3320,
+        "batch_groups": 2,
+        "effective_depth_views": 32,
+        "peak_allocated_gib": 13.797927856445312
+      },
+      "validation": [
+        {
+          "step": 500,
+          "re10k_group_absrel": 0.7191358618438244,
+          "vkitti_group_absrel": 0.2581066684797406
+        },
+        {
+          "step": 1000,
+          "re10k_group_absrel": 0.6852270606905222,
+          "vkitti_group_absrel": 0.2747350793797523
+        },
+        {
+          "step": 1500,
+          "re10k_group_absrel": 0.735464945435524,
+          "vkitti_group_absrel": 0.25746534997597337
+        },
+        {
+          "step": 2000,
+          "re10k_group_absrel": 0.7614272981882095,
+          "vkitti_group_absrel": 0.2546510035172105
+        },
+        {
+          "step": 2500,
+          "re10k_group_absrel": 0.7270958982408047,
+          "vkitti_group_absrel": 0.27131652156822383
+        },
+        {
+          "step": 3000,
+          "re10k_group_absrel": 0.7510222420096397,
+          "vkitti_group_absrel": 0.26005395222455263
+        }
+      ]
+    },
+    "mixed": {
+      "status": {
+        "status": "training",
+        "pid": 3645804,
+        "step": 3220,
+        "loss": 0.054729622788727283,
+        "grad_norm": 0.634497880935669,
+        "seconds": 25450.240147829056,
+        "steps_this_session": 3220,
+        "batch_groups": 2,
+        "effective_depth_views": 32,
+        "peak_allocated_gib": 13.797927856445312
+      },
+      "validation": [
+        {
+          "step": 500,
+          "re10k_group_absrel": 0.37417961563915014,
+          "vkitti_group_absrel": 0.323438283521682
+        },
+        {
+          "step": 1000,
+          "re10k_group_absrel": 0.32285815477371216,
+          "vkitti_group_absrel": 0.28865766897797585
+        },
+        {
+          "step": 1500,
+          "re10k_group_absrel": 0.31162772979587317,
+          "vkitti_group_absrel": 0.2505374336615205
+        },
+        {
+          "step": 2000,
+          "re10k_group_absrel": 0.32738302182406187,
+          "vkitti_group_absrel": 0.23499939776957035
+        },
+        {
+          "step": 2500,
+          "re10k_group_absrel": 0.3181069204583764,
+          "vkitti_group_absrel": 0.23561548395082355
+        },
+        {
+          "step": 3000,
+          "re10k_group_absrel": 0.30883281771093607,
+          "vkitti_group_absrel": 0.23539949930272996
+        }
+      ]
+    }
+  }
+}

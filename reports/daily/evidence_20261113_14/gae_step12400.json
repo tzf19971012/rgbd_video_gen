@@ -1,0 +1,38 @@
+{
+  "trajectory": {
+    "tgt_rgb_psnr": 18.549222575977534,
+    "tgt_rgb_lpips": 0.1953366165359815,
+    "tgt_depth_abs_rel_aligned": 0.07160541713237763,
+    "tgt_depth_delta1": 0.9404743472735088,
+    "nearest_src_psnr": 14.71448010046999
+  },
+  "yaw": {
+    "yaw0_psnr": 21.614488091760823,
+    "nonzero_psnr": 18.607970322959588,
+    "large15_20_psnr": 17.590711851763373,
+    "per_yaw": [
+      17.405301493141117,
+      17.519255624959502,
+      19.048384453016958,
+      19.254375583520954,
+      21.614488091760823,
+      20.663715479187623,
+      19.534439660897675,
+      18.391971230693255,
+      17.04631905825962
+    ]
+  },
+  "videos": {
+    "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329/lateral_probe_step12400_test/fe2fadf89a84e92a/lateral_probe_gae_patch1_re10k20261112_163329_step12400.mp4",
+    "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329/traj_step12400_test/fe2fadf89a84e92a/video_gae_patch1_re10k20261112_163329_step12400.mp4"
+  },
+  "outputs": {
+    "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329/traj_step12400_test/fe2fadf89a84e92a",
+    "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329/lateral_probe_step12400_test/fe2fadf89a84e92a"
+  },
+  "step": 12400,
+  "scene": "fe2fadf89a84e92a",
+  "projection_mode": "gae",
+  "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/gae_projection_cloud_step12400_probe_20261113/checkpoint-step-12400",
+  "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/gae_projection_cloud_step10000_probe_20261112/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py"
+}

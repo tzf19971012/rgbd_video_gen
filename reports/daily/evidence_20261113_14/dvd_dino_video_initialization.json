@@ -1,0 +1,10 @@
+{
+  "strict_load": "<All keys matched successfully>",
+  "video_frames": 9,
+  "latent_frames": 3,
+  "spatial_tokens": 1008,
+  "zero_adapter_max_error": 0.0,
+  "seed": 42,
+  "checkpoint": "dvd_1.1.safetensors",
+  "trainable_parameters": 700918656
+}

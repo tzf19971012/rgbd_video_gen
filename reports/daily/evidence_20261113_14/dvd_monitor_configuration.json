@@ -1,0 +1,7 @@
+{
+  "pid": 2631497,
+  "training_run": "/mnt/sfs_turbo/DVD/experiments/dino_v11_resume_20261113/formal_vkitti_dino_2npu_bs4",
+  "frequency": 1000,
+  "dataset": "DIODE full771",
+  "eval_card": 4
+}

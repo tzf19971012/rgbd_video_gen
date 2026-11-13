@@ -1,0 +1,79 @@
+{
+  "snapshot_utc": "2026-11-13T17:17:06Z",
+  "datasets": {
+    "tartanair": {
+      "status": "complete",
+      "pid": 2900875,
+      "files": 144,
+      "bytes": 419308856359,
+      "revision": "65e00180ea952475878a748543e11e9ec20beaac",
+      "destination": "/mnt/sfs_turbo/t00845730/data/tartanair",
+      "finished": 1794586234.0027,
+      "verified": "all144 selected file sizes",
+      "extract": false
+    },
+    "hypersim": {
+      "status": "downloading",
+      "revision": "3acda2f2c9b7c14148f0e71afbd3f132582b3922",
+      "total_files": 149244,
+      "total_bytes": 128136257535,
+      "completed_files": 42993,
+      "completed_bytes": 33461648368,
+      "failed_files": 0,
+      "attempt": 1,
+      "pid": 3308813,
+      "output": "/mnt/sfs_turbo/t00845730/data/Hypersim-Processed",
+      "repository": "omrastogi/Hypersim-Processed",
+      "updated_at": 1794590226.0478125
+    },
+    "vkitti": {
+      "time": 1794556438.2461827,
+      "repo": "Alexhe101/vkitti",
+      "revision": "115e1a6244ad5395d7ed1760e6b249a0a057b81e",
+      "destination": "/mnt/sfs_turbo/t00845730/data/vkitti",
+      "status": "complete",
+      "verified_file_sizes": true,
+      "total_files": 2162,
+      "total_bytes": 124018151143
+    },
+    "diode": {
+      "status": "complete",
+      "archive_bytes": 572740140,
+      "archive_members": 3886,
+      "extracted": true,
+      "repository": "Ruicheng/monocular-geometry-evaluation",
+      "revision": "574610d77c0cc14d911a1ff46ec529ba934c8960",
+      "pid": 3709730,
+      "output": "/mnt/sfs_turbo/t00845730/data/DIODE",
+      "updated_at": 1794565305.7776437
+    },
+    "tartanair_extraction": {
+      "status": "extracting",
+      "pid": 2731204,
+      "total_archives": 144,
+      "total_files": 1229500,
+      "total_uncompressed_bytes": 1320543688666,
+      "completed_archives": 0,
+      "completed_files": 0,
+      "completed_bytes": 0,
+      "active": {
+        "abandonedfactory/Easy/depth_right.zip": {
+          "files": 11714,
+          "bytes": 14377973590
+        },
+        "abandonedfactory/Easy/image_left.zip": {
+          "files": 10920,
+          "bytes": 10076654841
+        }
+      },
+      "elapsed_seconds": 290.2708387374878,
+      "output": "/mnt/sfs_turbo/t00845730/data/tartanair",
+      "zip_archives_retained": true
+    },
+    "tartanair_cleanup_policy": {
+      "status": "waiting_for_all_extraction_complete",
+      "authorized_by_user": true,
+      "total_archives": 144
+    }
+  }
+}

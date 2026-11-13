@@ -1,0 +1,63 @@
+{
+  "status": "complete",
+  "paired_samples": 771,
+  "progress": {
+    "DVD v1.0": 771,
+    "DVD v1.1": 771,
+    "DA3-GIANT": 771
+  },
+  "paired_metrics": {
+    "all": {
+      "DVD v1.0": {
+        "absrel": 0.07324334467200037,
+        "delta1": 0.9425753124880758,
+        "seconds": 0.8609017395014583
+      },
+      "DVD v1.1": {
+        "absrel": 0.07577405948972542,
+        "delta1": 0.9400431016964672,
+        "seconds": 0.8600561730128782
+      },
+      "DA3-GIANT": {
+        "absrel": 0.05864027533305792,
+        "delta1": 0.953543194785886,
+        "seconds": 0.1251747472122331
+      }
+    },
+    "indoor": {
+      "DVD v1.0": {
+        "absrel": 0.0635230064212755,
+        "delta1": 0.9585653987991418,
+        "seconds": 0.8631328436044546
+      },
+      "DVD v1.1": {
+        "absrel": 0.06440710228445942,
+        "delta1": 0.9588947748695948,
+        "seconds": 0.8611691761016845
+      },
+      "DA3-GIANT": {
+        "absrel": 0.04706960977878795,
+        "delta1": 0.9727926338398478,
+        "seconds": 0.12689641585716835
+      }
+    },
+    "outdoor": {
+      "DVD v1.0": {
+        "absrel": 0.08032655079640763,
+        "delta1": 0.9309233437636433,
+        "seconds": 0.8592759349421001
+      },
+      "DVD v1.1": {
+        "absrel": 0.0840571561079124,
+        "delta1": 0.9263058959088737,
+        "seconds": 0.8592451281611695
+      },
+      "DA3-GIANT": {
+        "absrel": 0.06707181413381522,
+        "delta1": 0.9395161371793012,
+        "seconds": 0.1239201680427175
+      }
+    }
+  },
+  "note": "MoGe processed DIODE; single-image inference; same480x640RGB before DA3 replicate padding to490x644; identical masks, disparity affine alignment and depth clipping; not paper benchmark reproduction."
+}

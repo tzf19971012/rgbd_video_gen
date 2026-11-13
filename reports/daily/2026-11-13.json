@@ -1,0 +1,978 @@
+{
+  "date": "2026-11-13",
+  "experiments": [
+    {
+      "experiment_id": "wan_rgb_nvs_stage1_full_re10k_16npu",
+      "recorded_at": "2026-11-13T10:20:49.532902",
+      "job": {
+        "id": "fbe86d95-ffe2-45ac-8c13-3afa289cce3a",
+        "name": "wan-rgb-nvs-stage1-full-re10k-16npu-20261113-r2",
+        "phase": "Running",
+        "secondary_phase": "Running",
+        "nodes": 1,
+        "flavor": "modelarts.pool.visual.16xlarge",
+        "pool": null,
+        "start_time": 1794535881000
+      },
+      "run_dir": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/wan_rgb_nvs_stage1_re10k_full_16npu_20261113_r2",
+      "entry": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/train_script/yundao_train_wan_rgb_nvs_stage1_full_16npu.sh",
+      "phase": "training_verified",
+      "protocol": {
+        "stage": "RGB native latent NVS only",
+        "pretrained": "Wan2.1 T2V1.3B",
+        "train": "LoRA rank128 DiT plus native patch/head and camera input block",
+        "frozen": "Wan VAE encoder/decoder; depth decoder absent",
+        "source_views": 6,
+        "target_views": 3,
+        "train_scenes": 7884,
+        "validation_scenes": 16,
+        "depth_loss": false,
+        "projection": false,
+        "conditioning": "concatpixel8 Plucker; corrected c2w; no span filter",
+        "native_grid": [
+          16,
+          48,
+          84
+        ],
+        "resolution": [
+          384,
+          672
+        ],
+        "steps": 30000,
+        "lr": 0.0001,
+        "proposed_local": {
+          "cards": [
+            1,
+            4,
+            6
+          ],
+          "batch_per_card": 2,
+          "accumulation": 2,
+          "effective_batch": 12
+        },
+        "cloud_not_submitted": true,
+        "validation": "separate16 test-manifest scenes, disjoint from final decoder test32; never used for training",
+        "cloud": {
+          "nodes": 1,
+          "cards": 16,
+          "micro_batch": 12,
+          "accumulation": 1,
+          "effective_batch": 192
+        },
+        "entry": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/train_script/yundao_train_wan_rgb_nvs_stage1_full_16npu.sh"
+      },
+      "first_updates": {
+        "step": 10,
+        "loss": 0.07682385295629501,
+        "pid": 2355,
+        "world_size": 16,
+        "micro_batch": 12,
+        "accumulation": 1,
+        "effective_batch": 192,
+        "peak_allocated_gib": 31.933754920959473,
+        "time": 1794536312.8025482
+      },
+      "rank_acceptance": {
+        "ranks": 16,
+        "all_native_latent_shapes": [
+          12,
+          16,
+          9,
+          48,
+          84
+        ],
+        "vae_frozen": true,
+        "depth_decoder_absent": true,
+        "loss": "RGB native latent rectified-flow velocity MSE only"
+      },
+      "cache_permissions": {
+        "readable_npz": 63008,
+        "roots": [
+          "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/decoder_scaleup_20261112/cache",
+          "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/wan_latent_depth_probe_20261110_221707/cache/train",
+          "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/wan_latent_depth_probe_20261110_221707/cache/val"
+        ],
+        "file_content_changed": false,
+        "world_read": true
+      },
+      "failed_attempts_preserved": [
+        "e0f00a4f-f9af-47b4-94d8-ec31f2ad01b1",
+        "584e3ada-019b-45b3-818a-4e79e4a8ceb4"
+      ],
+      "notes": [
+        "Historical pure-color concat pretrained-restoration shape bug fixed in this run snapshot before training.",
+        "Full7884 training scenes;16 validation scenes from test manifest for monitoring only;disjoint from decoder finaltest32.",
+        "Old decoder RGB native latent cache reused after explicit user instruction to open read permissions; no depth target enters model.",
+        "Fresh Wan pretrained initialization; this is not resume from GAE checkpoint."
+      ]
+    },
+    {
+      "experiment_id": "decoder_scaleup_final_results",
+      "directory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/decoder_scaleup_20261112",
+      "recorded_at": "2026-11-13T14:36:48.586659",
+      "protocol": "Same initialization(seed42),architecture,LR1e-5,effectivebatch8,30000optimizerupdates. Nested train scenes,16validation scenes(64views),32test scenes(128views). Checkpoint selected only by validation alignedAbsRel.",
+      "representation": "four-view independent nativeWANRGB16ch latent + cameras + frozen originalWanDiTfeatures(layers9/19/29,t0); pretrainedWANdepthdecoder and multiviewfusion trained; no inputdepth",
+      "labels": "existing estimated depth, not sensor GT; per-image median scale alignment",
+      "results": [
+        {
+          "arm": "n256",
+          "train_scenes": 256,
+          "completed_steps": 30000,
+          "selected_step": 24000,
+          "validation_aligned_absrel": 0.2542480999836698,
+          "test": {
+            "absrel": 0.32528752530924976,
+            "aligned_absrel": 0.23586658132262528,
+            "delta1": 0.6092674895189703,
+            "log_rmse": 0.29180851846467704,
+            "step": 24000,
+            "samples": 128,
+            "split": "test"
+          },
+          "latest_validation": {
+            "absrel": 0.3114382296334952,
+            "aligned_absrel": 0.26442268234677613,
+            "delta1": 0.6322701508179307,
+            "log_rmse": 0.2941026866901666,
+            "step": 30000,
+            "samples": 64,
+            "split": "val"
+          }
+        },
+        {
+          "arm": "n1024",
+          "train_scenes": 1024,
+          "completed_steps": 30000,
+          "selected_step": 25500,
+          "validation_aligned_absrel": 0.21261462150141597,
+          "test": {
+            "absrel": 0.31354986096266657,
+            "aligned_absrel": 0.2170907550607808,
+            "delta1": 0.6364765171892941,
+            "log_rmse": 0.2652803650125861,
+            "step": 25500,
+            "samples": 128,
+            "split": "test"
+          },
+          "latest_validation": {
+            "absrel": 0.28347914631012827,
+            "aligned_absrel": 0.2402157171163708,
+            "delta1": 0.6569738213438541,
+            "log_rmse": 0.276564417174086,
+            "step": 30000,
+            "samples": 64,
+            "split": "val"
+          }
+        },
+        {
+          "arm": "full",
+          "train_scenes": 7868,
+          "completed_steps": 30000,
+          "selected_step": 24000,
+          "validation_aligned_absrel": 0.18359813815914094,
+          "test": {
+            "absrel": 0.26352073228918016,
+            "aligned_absrel": 0.19065937970299274,
+            "delta1": 0.6836288410704583,
+            "log_rmse": 0.23823587485821918,
+            "step": 24000,
+            "samples": 128,
+            "split": "test"
+          },
+          "latest_validation": {
+            "absrel": 0.25200360536109656,
+            "aligned_absrel": 0.193465854274109,
+            "delta1": 0.7190435528755188,
+            "log_rmse": 0.23040431865956634,
+            "step": 30000,
+            "samples": 64,
+            "split": "val"
+          }
+        }
+      ],
+      "test_absrel_relative_reduction_full_vs256": 0.1916642932887419,
+      "full_validation_windows": [
+        {
+          "start": 10500,
+          "end": 15000,
+          "mean_validation_aligned_absrel": 0.2069190826267004,
+          "best_validation_aligned_absrel": 0.19920995528809726,
+          "evaluations": 10
+        },
+        {
+          "start": 15500,
+          "end": 20000,
+          "mean_validation_aligned_absrel": 0.2002431667118799,
+          "best_validation_aligned_absrel": 0.18616954796016216,
+          "evaluations": 10
+        },
+        {
+          "start": 20500,
+          "end": 25000,
+          "mean_validation_aligned_absrel": 0.19419481066870503,
+          "best_validation_aligned_absrel": 0.18359813815914094,
+          "evaluations": 10
+        },
+        {
+          "start": 25500,
+          "end": 30000,
+          "mean_validation_aligned_absrel": 0.19641529328655452,
+          "best_validation_aligned_absrel": 0.18968270800542086,
+          "evaluations": 10
+        }
+      ],
+      "convergence": {
+        "assessment": "Validation alignedAbsRel is near a plateau under current constantLR; sufficient/asymptotic convergence is not established.",
+        "best_step": 24000,
+        "best_validation_aligned_absrel": 0.18359813815914094,
+        "steps_since_best": 6000,
+        "last_validation_aligned_absrel": 0.193465854274109,
+        "notes": [
+          "Last5k mean0.1964 versus previous5k0.1942; no sustained improvement in alignedAbsRel.",
+          "Fixed validation has16scenes and metrics fluctuate; delta1/logRMSE need not plateau simultaneously.",
+          "At30000updates,effective8targets/update,full data has about3.81 target-view passes(8views/scene); equalcompute does not mean equalepochs.",
+          "Data scaling benefit is demonstrated for thiscombinedrepresentation, not VAE-onlygeometry readout.",
+          "No further training started by this record operation."
+        ]
+      }
+    },
+    {
+      "experiment_id": "decoder_camera_ablation",
+      "directory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/decoder_camera_ablation_20261113",
+      "recorded_at": "2026-11-13T15:50:12.070899",
+      "means": {
+        "normal": {
+          "absrel": 0.26352073228918016,
+          "aligned_absrel": 0.19065937970299274,
+          "delta1": 0.6836288410704583,
+          "log_rmse": 0.23823587485821918
+        },
+        "embedding_off": {
+          "absrel": 0.2840704270056449,
+          "aligned_absrel": 0.22080805100267753,
+          "delta1": 0.6300321614835411,
+          "log_rmse": 0.2714319434016943
+        },
+        "shuffle1": {
+          "absrel": 0.26570603367872536,
+          "aligned_absrel": 0.1907486687414348,
+          "delta1": 0.6832077393773943,
+          "log_rmse": 0.2383361636311747
+        },
+        "shuffle2": {
+          "absrel": 0.2677758022909984,
+          "aligned_absrel": 0.19098822184605524,
+          "delta1": 0.6823740730178542,
+          "log_rmse": 0.2387094286386855
+        },
+        "shuffle3": {
+          "absrel": 0.26716755516827106,
+          "aligned_absrel": 0.1906991031137295,
+          "delta1": 0.6833294453681447,
+          "log_rmse": 0.23826043185545132
+        },
+        "shuffle_mean": {
+          "absrel": 0.2668831303793316,
+          "aligned_absrel": 0.1908119979004065,
+          "delta1": 0.6829704192544644,
+          "log_rmse": 0.23843534137510383
+        },
+        "mean_embedding": {
+          "absrel": 0.2656705204863101,
+          "aligned_absrel": 0.19060829875525087,
+          "delta1": 0.6836296272231266,
+          "log_rmse": 0.23822370904963464
+        },
+        "zero_camera_input": {
+          "absrel": 0.2812415281077847,
+          "aligned_absrel": 0.21241233684122562,
+          "delta1": 0.6427034030784853,
+          "log_rmse": 0.262634270649869
+        }
+      },
+      "paired": {
+        "embedding_off": {
+          "mean_absrel_difference": 0.030148671299684793,
+          "relative_error_change_percent": 15.812844532826077,
+          "scene_bootstrap95CI": [
+            0.008904249721672386,
+            0.06118317516811657
+          ],
+          "scenes_worse": 27,
+          "scenes_better": 5,
+          "scenes_tied": 0
+        },
+        "shuffle_mean": {
+          "mean_absrel_difference": 0.00015261819741378213,
+          "relative_error_change_percent": 0.08004756841835103,
+          "scene_bootstrap95CI": [
+            -0.0002544024566304881,
+            0.0005422581302506534
+          ],
+          "scenes_worse": 20,
+          "scenes_better": 12,
+          "scenes_tied": 0
+        },
+        "mean_embedding": {
+          "mean_absrel_difference": -5.108094774186611e-05,
+          "relative_error_change_percent": -0.026791730793118695,
+          "scene_bootstrap95CI": [
+            -0.0004307051698560826,
+            0.00030197030137060207
+          ],
+          "scenes_worse": 15,
+          "scenes_better": 17
+        },
+        "zero_camera_input": {
+          "mean_absrel_difference": 0.021752957138232887,
+          "relative_error_change_percent": 11.409329649618826,
+          "scene_bootstrap95CI": [
+            0.004091246867028531,
+            0.047870867213350723
+          ],
+          "scenes_worse": 23,
+          "scenes_better": 9
+        }
+      },
+      "interpretation": [
+        "Removing the entire poseMLP output worsens test alignedAbsRel15.81percent; thisalone does not prove geometric usefulness.",
+        "Cyclic permutation of view-camera associations changes average alignedAbsRel only0.08percent; scene-bootstrap95CI for the difference includes0.",
+        "Broadcasting per-group mean cameraembedding to allviews produces essentially identical alignedAbsRel.",
+        "Evidence supports dependence on a camera-conditioned group summary or feature offset, but does not show benefit from correct per-view camera correspondence.",
+        "This is inference-time ablation of one frozencheckpoint; no-camera training fromscratch remains untested."
+      ],
+      "protocol": {
+        "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/decoder_scaleup_20261112/full/run/best.pt",
+        "checkpoint_sha256": "7717665a98d1736416867ee568fa9c8e2de307a9f19b95755090277bb4fe1749",
+        "step": 24000,
+        "test_scenes": 32,
+        "test_views": 128,
+        "conditions": [
+          "normal",
+          "embedding_off",
+          "shuffle1",
+          "shuffle2",
+          "shuffle3"
+        ],
+        "embedding_off": "forward hook returns zeros_like(pose_MLP_output), removes biases as well",
+        "shuffle": "cyclic derangements 1/2/3 of all camera rows within each4view group; RGB latents/DiTfeatures/targets/depth unchanged",
+        "frozen": true,
+        "optimizer": null,
+        "retraining": false,
+        "metrics": "same per-view median-aligned depth metrics as original test; paired bootstrap by scene,not by correlatedview",
+        "seed": 42,
+        "extra_diagnostics": {
+          "mean_embedding": "broadcast per-group mean poseMLP output to all4 views; retains group summary but removes per-view correspondence",
+          "zero_camera_input": "all16 camera input values set0; poseMLP biases retained; no sample camera information enters thisbranch"
+        }
+      }
+    },
+    {
+      "experiment_id": "decoder_re10k_vkitti_nocamera",
+      "recorded_at": "2026-11-13T16:22:46.385764",
+      "directory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/decoder_re10k_vkitti_nocamera_20261113",
+      "protocol": {
+        "arms": [
+          "re10k",
+          "vkitti",
+          "mixed"
+        ],
+        "no_camera": true,
+        "architecture": "frozen originalWanDiTfeatures9/19/29 t0 + nativeRGB16chVAE + 2block multiview fusion + pretrainedWan depthdecoder; same seed42; no poseMLP; predicts all4 observedviews pergroup",
+        "loss": "group-scale-invariant logdepth variance across all valid pixels of4views; no absolute scale penalty; no per-image minmax",
+        "context_views": 4,
+        "frame_sampling": "8fixed ordered views/video, two interleaved4view groups; independentVAE384x672; real/video motion varies with dataset",
+        "re10k": {
+          "train_scenes": 7868,
+          "val_scenes": 16,
+          "test_scenes": 32,
+          "labels": "DA3estimated"
+        },
+        "vkitti": {
+          "train": [
+            "Scene01",
+            "Scene02",
+            "Scene06"
+          ],
+          "validation": [
+            "Scene18"
+          ],
+          "test": [
+            "Scene20"
+          ],
+          "variants": "allweather/camera/yaw/segments remain within base-scene split",
+          "depth": "provided float32 meters with centimeter quantization; provided mask observed as depth<80m",
+          "alignment": "RGB374x1242 versus depth375x1242: crop bottomdepth row to match RGB, then identical aspectpreserving resize+centercrop to384x672"
+        },
+        "mixed_sampling": "exactly50percent groups from each dataset peroptimizerupdate; equal loss weighting first round",
+        "lr": 1e-05,
+        "steps": 10000,
+        "eval_every": 500,
+        "checkpoint_selection": "equal mean of RE10Kval and VKITTIval group-alignedAbsRel; also report per-image alignedAbsRel; final test only after bestvalidation selection",
+        "cards": {
+          "re10k": 0,
+          "vkitti": 2,
+          "mixed": 3
+        },
+        "requested_pause": {
+          "run": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/projection_rgb_3npu_resume_3card_20261110_110818",
+          "state": "alreadyfinished10000; no process to stop; checkpoint preserved"
+        },
+        "tonight": "matched-step validation trend at500/1000/2500/5000; not convergence proof",
+        "labels_warning": "VKITTI only5base scenes, onlyone heldout testbase; no broadrealGTgeneralization claim",
+        "batch": {
+          "batch_groups": 2,
+          "gradient_accumulation": 1,
+          "effective_groups": 2,
+          "effective_depth_views": 8,
+          "steps": 10000,
+          "learning_rate": 1e-05
+        },
+        "activation_checkpointing": "pureT1stateless decoder,checkpoint eachblock; output bit-exact in tested firstchunk; nativeweights unchanged",
+        "batch_probe": {
+          "results": [
+            {
+              "batch_groups": 1,
+              "decoded_views": 4,
+              "loss": 0.5577113032341003,
+              "peak_allocated_gib": 6.775987148284912,
+              "peak_reserved_gib": 13.021484375,
+              "seconds": 2.357139825820923,
+              "scale_invariance_error": 0.0,
+              "passed": true
+            },
+            {
+              "batch_groups": 2,
+              "decoded_views": 8,
+              "loss": 0.5464322566986084,
+              "peak_allocated_gib": 13.59485673904419,
+              "peak_reserved_gib": 24.193359375,
+              "seconds": 1.4585494995117188,
+              "scale_invariance_error": 0.0,
+              "passed": true
+            }
+          ],
+          "complete": true
+        },
+        "decoder_equivalence": {
+          "passed": true,
+          "max_absolute_difference": 0.0,
+          "temporal_length": 1
+        }
+      },
+      "initial_state": "RE10Ktraining; VKITTIcachepreparing; remainingarmsqueued",
+      "actual_state": "all_three_training_verified",
+      "acceptance": {
+        "passed": true,
+        "time": "2026-11-13T16:32:48.548166",
+        "identical_initial_model_sha256": "bca8afce58741438e4f71f125dec82343a63b74e6dd3202f3df1559d6e714934",
+        "no_camera_parameters": true,
+        "loss_group_scale_invariance": true,
+        "decoder_stateless_equivalence": {
+          "passed": true,
+          "max_absolute_difference": 0.0,
+          "temporal_length": 1
+        },
+        "vkitti": {
+          "base_scenes": {
+            "train": [
+              "Scene01",
+              "Scene02",
+              "Scene06"
+            ],
+            "val": [
+              "Scene18"
+            ],
+            "test": [
+              "Scene20"
+            ]
+          },
+          "raw_group_counts": {
+            "train": 640,
+            "val": 240,
+            "test": 560
+          },
+          "evaluation_group_counts": {
+            "val": 32,
+            "test": 64
+          },
+          "video_records": 720,
+          "passed": true
+        },
+        "training_status": {
+          "re10k": {
+            "status": "training",
+            "pid": 2608253,
+            "step": 440,
+            "loss": 0.2947567105293274,
+            "grad_norm": 9.287178039550781,
+            "seconds": 678.2230145931244,
+            "steps_this_session": 440,
+            "batch_groups": 2,
+            "effective_depth_views": 8,
+            "peak_allocated_gib": 13.583899021148682
+          },
+          "vkitti": {
+            "status": "training",
+            "pid": 2757250,
+            "step": 100,
+            "loss": 0.1402074694633484,
+            "grad_norm": 2.9940571784973145,
+            "seconds": 212.3222599029541,
+            "steps_this_session": 100,
+            "batch_groups": 2,
+            "effective_depth_views": 8,
+            "peak_allocated_gib": 13.583899021148682
+          },
+          "mixed": {
+            "status": "training",
+            "pid": 2757251,
+            "step": 100,
+            "loss": 0.1012524738907814,
+            "grad_norm": 1.3250548839569092,
+            "seconds": 208.99767684936523,
+            "steps_this_session": 100,
+            "batch_groups": 2,
+            "effective_depth_views": 8,
+            "peak_allocated_gib": 13.583899021148682
+          }
+        },
+        "other_jobs_untouched": true
+      }
+    }
+  ],
+  "decoder_pure_vae_re10k_vkitti": {
+    "status": "all_three_training_verified",
+    "directory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/decoder_pure_vae_re10k_vkitti_20261113",
+    "reason": "User requested removing frozen DiT features; pure VAE latent only",
+    "previous_campaign": "decoder_re10k_vkitti_nocamera_20261113 paused with checkpoints preserved",
+    "cards": [
+      0,
+      2,
+      3
+    ],
+    "effective_groups": 8,
+    "microbatch_groups": 2,
+    "gradient_accumulation": 4,
+    "steps": 10000,
+    "lr": 1e-05,
+    "dit_features": false,
+    "camera_input": false,
+    "verified_initialization_sha256": "8d9bcd50aa45b5d0cc41edc37ab3019a85a8bd188ed71ce31e3304a3fdb93c46",
+    "verified_updates": {
+      "re10k": {
+        "status": "training",
+        "pid": 3645802,
+        "step": 3,
+        "loss": 0.3221624866127968,
+        "grad_norm": 2.876070261001587,
+        "seconds": 23.06034755706787,
+        "steps_this_session": 3,
+        "batch_groups": 2,
+        "effective_depth_views": 32,
+        "peak_allocated_gib": 13.797927856445312
+      },
+      "vkitti": {
+        "status": "training",
+        "pid": 3645803,
+        "step": 3,
+        "loss": 0.7214557826519012,
+        "grad_norm": 2.970938205718994,
+        "seconds": 24.798087120056152,
+        "steps_this_session": 3,
+        "batch_groups": 2,
+        "effective_depth_views": 32,
+        "peak_allocated_gib": 13.797927856445312
+      },
+      "mixed": {
+        "status": "training",
+        "pid": 3645804,
+        "step": 3,
+        "loss": 0.5354812741279602,
+        "grad_norm": 2.3326809406280518,
+        "seconds": 28.856876850128174,
+        "steps_this_session": 3,
+        "batch_groups": 2,
+        "effective_depth_views": 32,
+        "peak_allocated_gib": 13.797927856445312
+      }
+    }
+  },
+  "dvd_diode10_v11": {
+    "status": "complete",
+    "directory": "/mnt/sfs_turbo/DVD/inference_results/diode10_v11_20261113",
+    "samples": 10,
+    "checkpoint": "dvd_1.1.safetensors",
+    "summary": {
+      "all": {
+        "absrel": 0.043291329606900936,
+        "delta1": 0.961934349502328,
+        "seconds": 0.9678287267684936
+      },
+      "indoor": {
+        "absrel": 0.047165102547974284,
+        "delta1": 0.969752245236465,
+        "seconds": 1.0718040466308594
+      },
+      "outdoor": {
+        "absrel": 0.03941755666582759,
+        "delta1": 0.954116453768191,
+        "seconds": 0.8638534069061279
+      }
+    },
+    "protocol": "MoGe processed DIODE; single image480x640; disparity affine alignment; not full benchmark and not directly comparable to decoder group scale alignment"
+  },
+  "dvd_diode_full_v11": {
+    "status": "complete",
+    "pid": 4011220,
+    "directory": "/mnt/sfs_turbo/DVD/inference_results/diode_full_v11_20261113",
+    "samples": 771,
+    "indoor": 325,
+    "outdoor": 446,
+    "checkpoint": "dvd_1.1.safetensors",
+    "device": "card1",
+    "protocol": "same as10image smoke test; MoGe processed DIODE validation; single image480x640; per-image affine disparity alignment; not original paper protocol reproduction",
+    "summary": {
+      "all": {
+        "absrel": 0.07577405948972533,
+        "delta1": 0.9400431016964667,
+        "seconds": 0.8600561730128782
+      },
+      "indoor": {
+        "absrel": 0.0644071022844594,
+        "delta1": 0.9588947748695944,
+        "seconds": 0.8611691761016845
+      },
+      "outdoor": {
+        "absrel": 0.08405715610791238,
+        "delta1": 0.9263058959088738,
+        "seconds": 0.8592451281611695
+      }
+    },
+    "audit": {
+      "samples": 771,
+      "median_absrel": 0.04147334831400138,
+      "absrel_p90": 0.13084015850619177,
+      "absrel_over_02": 44,
+      "absrel_over_05": 14,
+      "negative_alignment_scales": 2,
+      "worst": [
+        {
+          "index": 365,
+          "sample": "val/outdoor/scene_00022/scan_00193/00022_00193_outdoor_220_030",
+          "domain": "outdoor",
+          "absrel": 1.0486557830966463,
+          "delta1": 0.14949001190105352,
+          "seconds": 0.8598108291625977,
+          "scale": 0.48103336278250863,
+          "shift": -0.11289144042738153,
+          "valid_fraction": 0.15919876098632812,
+          "peak_allocated_gib": 5.452759265899658
+        },
+        {
+          "index": 378,
+          "sample": "val/outdoor/scene_00022/scan_00194/00022_00194_outdoor_010_040",
+          "domain": "outdoor",
+          "absrel": 1.1051099811683607,
+          "delta1": 0.1839983417970774,
+          "seconds": 0.855726957321167,
+          "scale": 0.6316265626108214,
+          "shift": -0.2137401931583083,
+          "valid_fraction": 0.06134668986002604,
+          "peak_allocated_gib": 5.452759265899658
+        },
+        {
+          "index": 418,
+          "sample": "val/outdoor/scene_00022/scan_00194/00022_00194_outdoor_340_020",
+          "domain": "outdoor",
+          "absrel": 1.191534690206838,
+          "delta1": 0.05174316304315409,
+          "seconds": 0.8590867519378662,
+          "scale": 0.23140423568138244,
+          "shift": -0.0302954943770786,
+          "valid_fraction": 0.042636871337890625,
+          "peak_allocated_gib": 5.452759265899658
+        },
+        {
+          "index": 253,
+          "sample": "val/indoors/scene_00021/scan_00189/00021_00189_indoors_340_000",
+          "domain": "indoor",
+          "absrel": 1.3354616918276958,
+          "delta1": 0.7341800161723889,
+          "seconds": 0.8567862510681152,
+          "scale": 1.1489443389776801,
+          "shift": -0.009477782762188938,
+          "valid_fraction": 0.9309285481770834,
+          "peak_allocated_gib": 5.452759265899658
+        },
+        {
+          "index": 252,
+          "sample": "val/indoors/scene_00021/scan_00189/00021_00189_indoors_330_010",
+          "domain": "indoor",
+          "absrel": 2.1806440527319815,
+          "delta1": 0.6759609650311738,
+          "seconds": 0.8536438941955566,
+          "scale": 1.20101938864073,
+          "shift": -0.016104982707109836,
+          "valid_fraction": 0.9381612141927084,
+          "peak_allocated_gib": 5.452759265899658
+        }
+      ],
+      "preview_indices": [
+        225,
+        78,
+        184,
+        659,
+        442,
+        209,
+        367,
+        365,
+        378,
+        418,
+        253,
+        252,
+        0,
+        154,
+        308,
+        462,
+        616,
+        770
+      ]
+    }
+  },
+  "dvd_v10_v11_comparison": {
+    "status": "launched",
+    "v10_pid": 4097664,
+    "v10_card": 4,
+    "v11_pid": 4011220,
+    "v11_card": 1,
+    "samples": 771,
+    "report": "/mnt/sfs_turbo/DVD/inference_results/diode_versions_comparison_20261113/report.html",
+    "protocol": "Same MoGe DIODE validation samples,480x640,single image,affine disparity alignment; report only paired samples while running"
+  },
+  "da3_giant_diode": {
+    "status": "running_verified",
+    "pid": 1155375,
+    "card": 4,
+    "model": "/mnt/sfs_turbo/t00845730/zhangyiheng/data/UAV-MOT-training-assets-20261009/checkpoints/DA3-GIANT",
+    "output": "/mnt/sfs_turbo/DVD/inference_results/diode_da3giant_20261113",
+    "samples": 771,
+    "input_rgb_hw": [
+      480,
+      640
+    ],
+    "patch_padding_hw": [
+      490,
+      644
+    ],
+    "evaluation": "Same valid masks and inverse-depth affine alignment as DVD; model predicted depth inverted before alignment",
+    "camera_input": false,
+    "source": "local Depth-Anything-3",
+    "report": "/mnt/sfs_turbo/DVD/inference_results/diode_dvd_vs_da3_20261113/report.html"
+  },
+  "gae_projection_step12400_trajectory": {
+    "status": "complete",
+    "launch": {
+      "pid": 1641655,
+      "card": 4,
+      "source_checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329/checkpoint-step-12400",
+      "command": [
+        "/data/l00580360/miniconda3/envs/wan14b/bin/python",
+        "-u",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/gae_projection_cloud_step12400_probe_20261113/probe.py",
+        "--run_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329",
+        "--checkpoint",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/gae_projection_cloud_step12400_probe_20261113/checkpoint-step-12400",
+        "--scene_id",
+        "fe2fadf89a84e92a",
+        "--manifest",
+        "/mnt/sfs_turbo/t00845730/re10k/manifest_test_c2w_v1.jsonl",
+        "--cache_name",
+        "re10k_test",
+        "--seed",
+        "1234",
+        "--num_inference_steps",
+        "25",
+        "--job_dir",
+        "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/gae_projection_cloud_step12400_probe_20261113"
+      ],
+      "weights_header_sha256": "f4c319f0f5c3abfa636389707e13522962474ce7a716bc811d5f4d5db876df46"
+    },
+    "directory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/gae_projection_cloud_step12400_probe_20261113",
+    "scene": "fe2fadf89a84e92a",
+    "seed": 1234,
+    "sampling_steps": 25,
+    "manifest": "/mnt/sfs_turbo/t00845730/re10k/manifest_test_c2w_v1.jsonl",
+    "protocol": "same real trajectory and lateral/yaw probe as10000/10800; snapshot code unchanged",
+    "result": {
+      "trajectory": {
+        "tgt_rgb_psnr": 18.549222575977534,
+        "tgt_rgb_lpips": 0.1953366165359815,
+        "tgt_depth_abs_rel_aligned": 0.07160541713237763,
+        "tgt_depth_delta1": 0.9404743472735088,
+        "nearest_src_psnr": 14.71448010046999
+      },
+      "yaw": {
+        "yaw0_psnr": 21.614488091760823,
+        "nonzero_psnr": 18.607970322959588,
+        "large15_20_psnr": 17.590711851763373,
+        "per_yaw": [
+          17.405301493141117,
+          17.519255624959502,
+          19.048384453016958,
+          19.254375583520954,
+          21.614488091760823,
+          20.663715479187623,
+          19.534439660897675,
+          18.391971230693255,
+          17.04631905825962
+        ]
+      },
+      "videos": {
+        "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329/lateral_probe_step12400_test/fe2fadf89a84e92a/lateral_probe_gae_patch1_re10k20261112_163329_step12400.mp4",
+        "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329/traj_step12400_test/fe2fadf89a84e92a/video_gae_patch1_re10k20261112_163329_step12400.mp4"
+      },
+      "outputs": {
+        "trajectory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329/traj_step12400_test/fe2fadf89a84e92a",
+        "lateral": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/logs/gae_patch1_re10k20261112_163329/lateral_probe_step12400_test/fe2fadf89a84e92a"
+      },
+      "step": 12400,
+      "scene": "fe2fadf89a84e92a",
+      "projection_mode": "gae",
+      "checkpoint": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/gae_projection_cloud_step12400_probe_20261113/checkpoint-step-12400",
+      "implementation": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/gae_projection_cloud_step10000_probe_20261112/code/examples/wanvideo/model_training/WanGAENVSTrainingModule.py"
+    },
+    "comparison": [
+      {
+        "step": 10000,
+        "psnr": 18.44421478351422,
+        "lpips": 0.19821919600168864,
+        "depth_absrel": 0.07053536574045817,
+        "large_yaw_psnr": 17.17530768041072
+      },
+      {
+        "step": 10800,
+        "psnr": 18.357295133540376,
+        "lpips": 0.20399295886357624,
+        "depth_absrel": 0.07509391158819198,
+        "large_yaw_psnr": 17.231915839918514
+      },
+      {
+        "step": 12400,
+        "psnr": 18.549222575977534,
+        "lpips": 0.1953366165359815,
+        "depth_absrel": 0.07160541713237763,
+        "large_yaw_psnr": 17.590711851763373
+      }
+    ]
+  },
+  "cloud_capacity_query": {
+    "pool": "pool-car",
+    "nodes_total": 8,
+    "accelerators_per_node": 16,
+    "allocated_cards": 128,
+    "free_cards": 0,
+    "active_jobs": {
+      "wan-rgb-stage1-resume500-r2-20261113": 16,
+      "ig_det-v2-消融实验-clone-e5c0": 64,
+      "yiheng-clone-7259": 16,
+      "nvs_v2-clone-1875": 32
+    }
+  },
+  "gae_convergence_test10": {
+    "status": "running_first_scene",
+    "pid": 1775879,
+    "directory": "/mnt/sfs_turbo/t00845730/rgbd_video_gen_gae/reports/gae_projection_convergence_test10_20261113",
+    "test_scenes": 10,
+    "train_diagnostic_scenes": 4,
+    "steps": [
+      10000,
+      12400
+    ],
+    "card": 4
+  },
+  "dvd_v11_dino_resume": {
+    "status": "formal_vkitti_dino_training_verified",
+    "directory": "/mnt/sfs_turbo/DVD/experiments/dino_v11_resume_20261113",
+    "dino": "facebook/dinov2-large frozen",
+    "download_pid": 1783245,
+    "preflight_pid": 1790027,
+    "preflight_card": 1,
+    "training_data": [
+      "VKITTI",
+      "TartanAir",
+      "Hypersim"
+    ],
+    "held_out": "DIODE test only",
+    "remaining": "DINO download, single-image wiring verification, video temporal alignment verification, full training data readiness and formal paired training launch",
+    "pid": 1972610,
+    "card": 1,
+    "baseline_queued": true,
+    "baseline_queue_pid": 1981060,
+    "training_plan": {
+      "status": "formal_dino_training_first_update_verified",
+      "initialization": "/mnt/sfs_turbo/DVD/ckpt/dvd_1.1.safetensors",
+      "baseline": "existing DVD LoRA resumed without merging",
+      "augmented": "same DVD LoRA plus zero initialized residual DINO adapters",
+      "dino": "facebook/dinov2-large frozen",
+      "injection_blocks": [
+        9,
+        19,
+        29
+      ],
+      "dino_bottleneck": 128,
+      "training_data": [
+        "VKITTI",
+        "TartanAir",
+        "Hypersim"
+      ],
+      "held_out": "DIODE is test only; no training or checkpoint selection",
+      "data_readiness": "VKITTI complete; TartanAir and Hypersim still downloading; full-data training not launched",
+      "preflight": "strict DVD load, zero-adapter prediction equality, finite LoRA and adapter gradients, no frozen-model gradients; single-image smoke check, video temporal path separately required",
+      "training_parameters": "pending full-data manifest and memory probe; no long training launched",
+      "training_data_current": "VKITTI only: Scene01/02/06; available-data phase while other datasets download",
+      "dino_pid": 1972610,
+      "dino_card": 1,
+      "baseline_queue_pid": 1981060,
+      "baseline_card": 4,
+      "baseline_status": "queued until camera evaluation completes",
+      "lr": 1e-05,
+      "microbatch_clips": 1,
+      "gradient_accumulation": 4,
+      "effective_clips": 4,
+      "clip_frames": 9,
+      "spatial_resolution": [
+        384,
+        672
+      ],
+      "new_optimizer_steps": 10000,
+      "remaining": "Three-dataset mixed-data stage pending download and a separate frozen manifest; not silently enabled in this run",
+      "split_note": "Scene18/20 are held out from our continuation only; original DVD published weights may have seen these VKITTI scenes"
+    },
+    "initialization": {
+      "strict_load": "<All keys matched successfully>",
+      "video_frames": 9,
+      "latent_frames": 3,
+      "spatial_tokens": 1008,
+      "zero_adapter_max_error": 0.0,
+      "seed": 42,
+      "checkpoint": "dvd_1.1.safetensors",
+      "trainable_parameters": 700918656
+    },
+    "acceptance": {
+      "passed": true,
+      "optimizer_step": 3,
+      "loss": 0.16142732091248035,
+      "frozen_dino": true,
+      "vae_frozen": true,
+      "finite_gradients": true,
+      "source": "real chronological9frame VKITTI clips"
+    }
+  },
+  "discussion_archive": {
+    "record": "2026-11-13_discussion.json",
+    "readable": "2026-11-13_discussion.html",
+    "updated_on": "2026-11-14"
+  }
+}

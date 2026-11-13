@@ -1,0 +1,40 @@
+{
+  "arm": "dino",
+  "initialization": "DVD v1.1 published weights; optimizer freshly initialized",
+  "checkpoint": "/mnt/sfs_turbo/DVD/ckpt/dvd_1.1.safetensors",
+  "training_domain": "VKITTI available-data phase only, not full three-dataset mixture",
+  "training_videos": 320,
+  "train_scenes": [
+    "Scene01",
+    "Scene02",
+    "Scene06"
+  ],
+  "validation_scene": "Scene18",
+  "test_scene": "Scene20 not used for training or selection",
+  "held_out": "DIODE test only; not selection",
+  "frames": 9,
+  "resolution": [
+    384,
+    672
+  ],
+  "microbatch_clips": 4,
+  "world_size": 2,
+  "accumulation": 1,
+  "effective_batch_clips": 8,
+  "lr": 1e-05,
+  "steps": 10000,
+  "validation_every": 250,
+  "checkpoint_every": 100,
+  "seed": 42,
+  "loss": "DVD latent x-MSE + .5 temporal/spatial latent L1 gradient losses; valid-depth2/98percentile disparity normalization shared per clip; invalid target pixels filled0 before frozen VAE",
+  "dino": "facebook/dinov2-large frozen last patch layer, no CLS, replicate-pad14, spatially resize to DiT patch grid",
+  "temporal_alignment": "first RGB frame for latent0; mean corresponding four-frame DINO groups for subsequent temporal latents; approximate receptive-field support",
+  "injection_blocks": [
+    9,
+    19,
+    29
+  ],
+  "adapter": "LayerNorm1024 Linear1024to128 GELU zeroLinear128to1536 residual",
+  "lora_rank": 512,
+  "vae_frozen": true
+}
